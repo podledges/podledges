@@ -176,9 +176,10 @@ def act(s, move):
 
 
 # ── palette ──────────────────────────────────────────────────────────────
-BG = "#0a0e14"
-PANEL = "#0e141c"
-BORDER = "#1c2733"
+# frame colors match GitHub dark UI so the table blends with native panels
+BG = "#0d1117"
+PANEL = "#161b22"
+BORDER = "#30363d"
 DIM = "#46586a"
 TEXT = "#93a7b8"
 BRIGHT = "#e8f1f8"
@@ -289,7 +290,7 @@ def render_table(s):
     out = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" '
         f'viewBox="0 0 {W} {H}" font-family="{MONO}">',
-        f'<rect width="{W}" height="{H}" rx="10" fill="{BG}" stroke="{BORDER}"/>',
+        f'<rect x="0.5" y="0.5" width="{W - 1}" height="{H - 1}" rx="6" fill="{BG}" stroke="{BORDER}"/>',
         f'<line x1="232" y1="16" x2="232" y2="{H - 16}" stroke="{BORDER}"/>',
         f'<text x="{px}" y="32" font-size="11" fill="{BLUE}" letter-spacing="2" '
         f'font-weight="bold">PODLE STATS</text>',
@@ -476,7 +477,7 @@ def render_button(label, sub, color, active):
         return (
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" '
             f'viewBox="0 0 {W} {H}" font-family="{MONO}">'
-            f'<rect x="1" y="1" width="{W - 2}" height="{H - 2}" rx="8" fill="{BG}" '
+            f'<rect x="1" y="1" width="{W - 2}" height="{H - 2}" rx="6" fill="{BG}" '
             f'stroke="{DIM}" stroke-dasharray="3,4" opacity="0.6"/>'
             f'<text x="{W / 2}" y="20" font-size="12" text-anchor="middle" '
             f'fill="{DIM}" letter-spacing="2">{label}</text>'
@@ -486,7 +487,7 @@ def render_button(label, sub, color, active):
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" '
         f'viewBox="0 0 {W} {H}" font-family="{MONO}">'
-        f'<rect x="1" y="1" width="{W - 2}" height="{H - 2}" rx="8" fill="{PANEL}" '
+        f'<rect x="1" y="1" width="{W - 2}" height="{H - 2}" rx="6" fill="{PANEL}" '
         f'stroke="{color}" stroke-width="1.5">'
         f'<animate attributeName="stroke-opacity" values="1;0.35;1" dur="1.8s" '
         f'repeatCount="indefinite"/></rect>'
