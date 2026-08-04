@@ -27,6 +27,7 @@
   #play{border:1.5px solid var(--amber)} #play .l{color:var(--amber)}
   #hit{border:1.5px solid var(--lime)}  #hit .l{color:var(--lime)}
   #stand{border:1.5px solid var(--pink)} #stand .l{color:var(--pink)}
+  #walk{border:1.5px solid var(--blue)} #walk .l{color:var(--blue)}
   button:not(:disabled){animation:pulse 1.8s infinite}
   @keyframes pulse{0%,100%{filter:none}50%{filter:brightness(.7)}}
   button:not(:disabled):hover{filter:brightness(1.25)!important;animation:none}
@@ -43,6 +44,7 @@
   <button id="play"><span class="l">▶ PLAY</span><span class="s">deal a hand · 100 gold</span></button>
   <button id="hit"><span class="l">+ HIT</span><span class="s">draw another card</span></button>
   <button id="stand"><span class="l">■ STAND</span><span class="s">podles plays out</span></button>
+  <button id="walk"><span class="l">⇐ WALK</span><span class="s">cash out · save your run</span></button>
 </div>
 <div class="name">ledger name: <input id="pname" maxlength="20" spellcheck="false"></div>
 <div class="foot">
@@ -69,8 +71,40 @@ const KEY="podle-blackjack";
 function freshState(){return{phase:"idle",deck:[],player:[],dealer:[],
   msg:"table open — press play",balance:STAKE,session:{hands:0,peak:STAKE},
   ledger:{best:[],worst:[]},stats:{games:0,pnl:0,last:[]}};}
-let S; try{S=Object.assign(freshState(),JSON.parse(localStorage.getItem(KEY))||{});}catch{S=freshState();}
+function hydrate(raw){
+  const base=freshState();
+  if(!raw||typeof raw!=="object"||Array.isArray(raw))return base;
+  const s={...base,...raw};
+  for(const k of ["session","ledger","stats"]){
+    if(!raw[k]||typeof raw[k]!=="object"||Array.isArray(raw[k]))s[k]=base[k];
+    else s[k]={...base[k],...raw[k]};
+  }
+  if(!["idle","player","done","broke","walked"].includes(s.phase))s.phase="idle";
+  if(typeof s.msg!=="string")s.msg=base.msg;
+  for(const k of ["deck","player","dealer"]){
+    if(!Array.isArray(s[k]))s[k]=[]; else s[k]=s[k].filter(c=>typeof c==="string");
+  }
+  for(const k of ["best","worst"]){
+    if(!Array.isArray(s.ledger[k]))s.ledger[k]=[];
+    else s.ledger[k]=s.ledger[k].filter(e=>e&&typeof e==="object").map(e=>({...e,
+      hands:Number.isFinite(e.hands)?e.hands:0,
+      peak_net:Number.isFinite(e.peak_net)?e.peak_net:0,
+      final:Number.isFinite(e.final)?e.final:0,
+      by:typeof e.by==="string"?e.by:"anon"}));
+  }
+  if(!Array.isArray(s.stats.last))s.stats.last=[];
+  if(!Number.isFinite(s.stats.games))s.stats.games=base.stats.games;
+  if(!Number.isFinite(s.stats.pnl))s.stats.pnl=base.stats.pnl;
+  if(!Number.isFinite(s.balance))s.balance=base.balance;
+  if(!Number.isFinite(s.session.hands))s.session.hands=base.session.hands;
+  if(!Number.isFinite(s.session.peak))s.session.peak=base.session.peak;
+  return s;
+}
+let S; try{S=hydrate(JSON.parse(localStorage.getItem(KEY))||{});}catch{S=freshState();}
 const save=()=>localStorage.setItem(KEY,JSON.stringify(S));
+// tracks what was actually on the table in the previous render, so dealtCard()
+// only animates cards that are genuinely new (reset whenever a fresh hand is dealt)
+let prev={player:S.player.length,dealer:S.dealer.length,hide:S.phase==="player"};
 const pname=document.getElementById("pname");
 pname.value=localStorage.getItem(KEY+"-name")||"anon";
 pname.onchange=()=>localStorage.setItem(KEY+"-name",pname.value.trim()||"anon");
@@ -103,12 +137,20 @@ function settle(res,delta,msg){
   if(S.balance<BET){S.phase="broke";endSession();S.msg=`${msg}${tail} — out of gold.`;}
   else{S.phase="done";S.msg=`${msg}${tail}`;}
 }
+function walk(){
+  if(S.phase!=="done")return;
+  endSession();
+  const net=S.balance-STAKE;
+  S.phase="walked";
+  S.msg=`you walk away with ${S.balance} gold (${net>=0?"+":""}${net} gold).`;
+}
 function act(move){
   if(move==="deal"){
     if(S.phase==="player"){settle("L",-BET,"hand abandoned");if(S.phase==="broke")return;}
-    if(S.phase==="broke"){S.balance=STAKE;S.session={hands:0,peak:STAKE};}
+    if(S.phase==="broke"||S.phase==="walked"){S.balance=STAKE;S.session={hands:0,peak:STAKE};}
     S.deck=newDeck();S.player=[S.deck.pop(),S.deck.pop()];S.dealer=[S.deck.pop(),S.deck.pop()];
     S.phase="player";
+    prev={player:0,dealer:0,hide:true}; // fresh hand — every card dealt is new
     const pv=handValue(S.player),dv=handValue(S.dealer);
     if(pv===21&&dv===21)settle("P",0,"double blackjack — push");
     else if(pv===21)settle("W",Math.floor(BET*1.5),"blackjack!");
@@ -154,7 +196,11 @@ function cardFace(card,hidden){
     +`<text x="${CW/2}" y="${CH/2+10}" font-size="17" text-anchor="middle" fill="${col}">${suit}</text>`
     +`<text x="${CW-7}" y="${CH-8}" font-size="13" text-anchor="end" fill="${col}">${rank}</text>`;
 }
-function dealtCard(x,y,card,delay,hidden){
+function dealtCard(x,y,card,delay,hidden,animate){
+  if(!animate){
+    // already visible in the previous render — hold position, no replay
+    return `<g transform="translate(${x},${y})">${cardFace(card,hidden)}</g>`;
+  }
   const dx=DX-x,dy=DY-y;
   return `<g transform="translate(${x},${y})"><g opacity="0">`
     +`<animate attributeName="opacity" to="1" begin="${delay.toFixed(2)}s" dur="0.2s" fill="freeze"/>`
@@ -170,6 +216,7 @@ function msgMarkup(){
   }
   return m;
 }
+const signedGold=n=>`${n>=0?"+":""}${n}`;
 function renderTable(){
   const W=700,H=292,st=S.stats,hide=S.phase==="player",px=22,pr=212,tx=252;
   const o=[`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="${MONO}">`,
@@ -213,16 +260,43 @@ function renderTable(){
     const lx=tx+16,ex=tx+104;let y=106;
     for(const[label,col,runs]of[["Best Runs:",C.LIME,S.ledger.best.slice(0,3)],["Worst Runs:",C.PINK,S.ledger.worst.slice(0,3)]]){
       o.push(`<text x="${lx}" y="${y}" font-size="10" fill="${col}" font-weight="bold">${label}</text>`);
-      runs.forEach((e,i)=>o.push(`<text x="${ex}" y="${y+i*15}" font-size="10" fill="${col}">${i+1}. +${e.peak_net} gold · ${e.hands} hands · @${esc(e.by)}</text>`));
+      runs.forEach((e,i)=>o.push(`<text x="${ex}" y="${y+i*15}" font-size="10" fill="${col}">${i+1}. ${signedGold(e.peak_net)} gold · ${e.hands} hands · @${esc(e.by)}</text>`));
       y+=Math.max(runs.length,1)*15+12;
     }
     o.push(`<text x="${cx}" y="${y+4}" font-size="10" text-anchor="middle" fill="${C.TEXT}">press <tspan fill="${C.AMBER}">▶ PLAY</tspan> to re-buy <tspan fill="${C.GOLD}">${STAKE} gold</tspan></text>`);
+  }else if(S.phase==="walked"){
+    const net=S.balance-STAKE;
+    o.push(`<text x="${cx}" y="52" font-size="16" text-anchor="middle" fill="${C.BRIGHT}" letter-spacing="3" font-weight="bold"><tspan font-size="21" fill="${C.GOLD}">♠</tspan> WALKED AWAY <tspan font-size="21" fill="${C.GOLD}">♠</tspan></text>`);
+    o.push(`<text x="${cx}" y="80" font-size="12" text-anchor="middle" fill="${C.BRIGHT}" font-weight="bold">YOU BANKED: <tspan fill="${C.LIME}">${S.balance} Gold (${net>=0?"+":""}${net}) · ${S.session.hands} Hands</tspan></text>`);
+    const wlx=tx+16,wex=tx+104;let wy=106;
+    for(const[label,col,runs]of[["Best Runs:",C.LIME,S.ledger.best.slice(0,3)],["Worst Runs:",C.PINK,S.ledger.worst.slice(0,3)]]){
+      o.push(`<text x="${wlx}" y="${wy}" font-size="10" fill="${col}" font-weight="bold">${label}</text>`);
+      runs.forEach((e,i)=>o.push(`<text x="${wex}" y="${wy+i*15}" font-size="10" fill="${col}">${i+1}. ${signedGold(e.peak_net)} gold · ${e.hands} hands · @${esc(e.by)}</text>`));
+      wy+=Math.max(runs.length,1)*15+12;
+    }
+    o.push(`<text x="${cx}" y="${wy+4}" font-size="10" text-anchor="middle" fill="${C.TEXT}">press <tspan fill="${C.AMBER}">▶ NEW RUN</tspan> for <tspan fill="${C.GOLD}">${STAKE} fresh gold</tspan></text>`);
   }else{
     const dv=handValue(S.dealer),pv=handValue(S.player);
     o.push(`<text x="${tx}" y="34" font-size="11" fill="${C.AMBER}" letter-spacing="1" font-weight="bold">PODLES [${hide?"??":dv}]</text>`);
-    S.dealer.forEach((c,i)=>o.push(dealtCard(tx+i*(CW+8),42,c,0.25+i*0.22,hide&&i===1)));
+    // only cards beyond what was previously on the table (or the hole card just
+    // being revealed) are "new" and get the fly-in/fade-in animation; everything
+    // already visible last render stays put with no replay
+    let dNew=0;
+    S.dealer.forEach((c,i)=>{
+      const revealed=i===1&&prev.hide&&!hide;
+      const isNew=i>=prev.dealer||revealed;
+      const delay=isNew?0.15+dNew*0.22:0;
+      if(isNew)dNew++;
+      o.push(dealtCard(tx+i*(CW+8),42,c,delay,hide&&i===1,isNew));
+    });
     o.push(`<text x="${tx}" y="134" font-size="11" fill="${C.DIM}" letter-spacing="1" font-weight="bold">PLAYER <tspan fill="${C.BLUE}">[${pv}]</tspan></text>`);
-    S.player.forEach((c,i)=>o.push(dealtCard(tx+i*(CW+8),142,c,0.14+i*0.22)));
+    let pNew=0;
+    S.player.forEach((c,i)=>{
+      const isNew=i>=prev.player;
+      const delay=isNew?0.05+pNew*0.22:0;
+      if(isNew)pNew++;
+      o.push(dealtCard(tx+i*(CW+8),142,c,delay,false,isNew));
+    });
   }
   o.push(`<text x="${tx}" y="${H-16}" font-size="11" fill="${C.BLUE}">&gt; ${msgMarkup()}<tspan fill="${C.BLUE}"> ▌<animate attributeName="opacity" values="1;0;1" dur="1.2s" repeatCount="indefinite"/></tspan></text>`);
   o.push("</svg>");
@@ -231,24 +305,30 @@ function renderTable(){
 
 // ── wiring ──────────────────────────────────────────────────────────────
 const tableEl=document.getElementById("table");
-const btn={play:document.getElementById("play"),hit:document.getElementById("hit"),stand:document.getElementById("stand")};
+const btn={play:document.getElementById("play"),hit:document.getElementById("hit"),stand:document.getElementById("stand"),walk:document.getElementById("walk")};
 function draw(){
   tableEl.innerHTML=renderTable();
+  prev={player:S.player.length,dealer:S.dealer.length,hide:S.phase==="player"};
   const live=S.phase==="player";
   btn.hit.disabled=!live; btn.stand.disabled=!live;
+  btn.walk.disabled=S.phase!=="done";
   const pl=btn.play.querySelector(".l"),ps=btn.play.querySelector(".s");
   if(live){pl.textContent="⟳ REDEAL";ps.textContent=`abandons hand · -${BET} gold`;}
   else if(S.phase==="broke"){pl.textContent="▶ REBUY";ps.textContent=`fresh ${STAKE} gold`;}
+  else if(S.phase==="walked"){pl.textContent="▶ NEW RUN";ps.textContent=`fresh ${STAKE} gold`;}
   else{pl.textContent="▶ PLAY";ps.textContent=`deal a hand · ${BET} gold`;}
   save();
 }
 btn.play.onclick=()=>{act("deal");draw();};
 btn.hit.onclick=()=>{act("hit");draw();};
 btn.stand.onclick=()=>{act("stand");draw();};
+btn.walk.onclick=()=>{walk();draw();};
 addEventListener("keydown",e=>{
+  if(e.target===pname)return;
   if(e.key==="d"||e.key==="p")btn.play.click();
   if(e.key==="h"&&!btn.hit.disabled)btn.hit.click();
   if(e.key==="s"&&!btn.stand.disabled)btn.stand.click();
+  if(e.key==="w"&&!btn.walk.disabled)btn.walk.click();
 });
 draw();
 </script>
