@@ -194,19 +194,36 @@ CARD_W, CARD_H = 46, 62
 DECK_X, DECK_Y = 606, 60  # where cards fly in from
 
 
-def coin_stack(x, y, scale=1.0):
-    """Small stack of gold coins."""
-    out = []
-    for i in range(3):
-        cy = y - i * 4.2 * scale
-        out.append(
-            f'<ellipse cx="{x}" cy="{cy:.1f}" rx="{9 * scale:.1f}" ry="{3.6 * scale:.1f}" '
-            f'fill="{GOLD}" stroke="{GOLD_DARK}" stroke-width="1"/>'
-        )
-    out.append(
-        f'<ellipse cx="{x}" cy="{y - 8.4 * scale:.1f}" rx="{5.5 * scale:.1f}" '
-        f'ry="{1.8 * scale:.1f}" fill="#ffe9a8"/>'
-    )
+# pixel-art podle coin: '#' outline, 'y' gold, 'd' dark (ring/P), 'h' shine, 'g' shade
+COIN_PIX = [
+    "....####....",
+    "..##yyyy##..",
+    ".#hyyyyyyg#.",
+    ".#hyydddyg#.",
+    "#yhyydydyyg#",
+    "#yhyydddyyg#",
+    "#yhyydyyyyg#",
+    ".#hyydyyyg#.",
+    ".#hyyyyyyg#.",
+    "..##gggg##..",
+    "....####....",
+]
+COIN_COLS = {"#": "#161006", "y": GOLD, "d": GOLD_DARK, "h": "#ffe9a8", "g": "#c9992e"}
+
+
+def pixel_coin(x, y, size=16.0):
+    """Pixel-art gold coin with a P, top-left corner at (x, y)."""
+    px_size = size / 12
+    out = ['<g shape-rendering="crispEdges">']
+    for r, row in enumerate(COIN_PIX):
+        for c, ch in enumerate(row):
+            if ch == ".":
+                continue
+            out.append(
+                f'<rect x="{x + c * px_size:.2f}" y="{y + r * px_size:.2f}" '
+                f'width="{px_size:.2f}" height="{px_size:.2f}" fill="{COIN_COLS[ch]}"/>'
+            )
+    out.append("</g>")
     return "".join(out)
 
 
@@ -280,10 +297,10 @@ def render_table(s):
     ]
 
     # gold balance
-    out.append(coin_stack(px + 9, 68, 0.9))
+    out.append(pixel_coin(px + 1, 56, 16))
     bal_col = GOLD if s["balance"] >= BET else PINK
     out.append(
-        f'<text x="{px + 26}" y="70" font-size="11" fill="{DIM}">gold'
+        f'<text x="{px + 26}" y="70" font-size="11" fill="{DIM}">Gold'
         f'<tspan x="{panel_r}" text-anchor="end" fill="{bal_col}" '
         f'font-weight="bold">{s["balance"]}</tspan></text>'
     )
@@ -293,17 +310,20 @@ def render_table(s):
     pnl_col = LIME if pnl > 0 else PINK if pnl < 0 else TEXT
     pnl_str = f"+{pnl}" if pnl > 0 else str(pnl)
     out.append(
-        f'<text x="{px}" y="96" font-size="10" fill="{DIM}">total podle win '
+        f'<text x="{px}" y="96" font-size="10" fill="{DIM}">Total Podles win '
         f'<tspan font-size="8">(LIFETIME)</tspan>'
         f'<tspan x="{panel_r}" text-anchor="end" font-size="11" fill="{pnl_col}">{pnl_str}</tspan></text>'
     )
     out.append(
-        f'<text x="{px}" y="120" font-size="11" fill="{DIM}">games'
+        f'<text x="{px}" y="120" font-size="11" fill="{DIM}">Games'
         f'<tspan x="{panel_r}" text-anchor="end" fill="{BRIGHT}">{st["games"]}</tspan></text>'
     )
 
     # last 10
-    out.append(f'<text x="{px}" y="148" font-size="11" fill="{DIM}">last 10</text>')
+    out.append(
+        f'<text x="{px}" y="148" font-size="11" fill="{DIM}">Last 10 Rounds '
+        f'<tspan font-size="8">(GLOBALLY)</tspan></text>'
+    )
     for i in range(10):
         cx = px + 8 + i * 19
         if i < len(st["last"]):
@@ -325,10 +345,10 @@ def render_table(s):
         f'font-weight="bold">PODLE RULES</text>'
     )
     rules = [
-        "blackjack pays 3:2",
-        "podles stands on 17",
-        "quitting a hand = loss",
-        f"start {STAKE} gold · {BET}/hand",
+        "Blackjack pays 3:2",
+        "Podles stands on 17",
+        "Quitting a hand = loss",
+        f"Start {STAKE} gold · {BET}/hand",
     ]
     for i, rule in enumerate(rules):
         out.append(
@@ -350,7 +370,7 @@ def render_table(s):
         f'text-anchor="middle" fill="{DIM}" letter-spacing="2" font-weight="bold">DECK</text>'
     )
     bet_cx = DECK_X + CARD_W / 2 + 2
-    out.append(coin_stack(bet_cx - 14, DECK_Y + CARD_H + 52, 1.0))
+    out.append(pixel_coin(bet_cx - 26, DECK_Y + CARD_H + 36, 18))
     out.append(
         f'<text x="{bet_cx - 1}" y="{DECK_Y + CARD_H + 52}" font-size="11" '
         f'fill="{GOLD}" font-weight="bold">{BET}</text>'
@@ -392,8 +412,8 @@ def render_table(s):
         )
         out.append(
             f'<text x="{cx}" y="80" font-size="12" text-anchor="middle" fill="{BRIGHT}" '
-            f'font-weight="bold">YOUR SCORE: <tspan fill="{AMBER}">peak '
-            f'+{me["peak"] - STAKE} gold · {me["hands"]} hands</tspan></text>'
+            f'font-weight="bold">YOUR SCORE: <tspan fill="{AMBER}">PEAKED '
+            f'+{me["peak"] - STAKE} Gold · {me["hands"]} Hands</tspan></text>'
         )
         lx, ex = tx + 16, tx + 104
         y = 106
@@ -406,7 +426,7 @@ def render_table(s):
             for i, e in enumerate(runs):
                 out.append(
                     f'<text x="{ex}" y="{y + i * 15}" font-size="10" fill="{col}">'
-                    f'{i + 1}. peak +{e["peak_net"]} gold · {e["hands"]} hands · '
+                    f'{i + 1}. +{e["peak_net"]} gold · {e["hands"]} hands · '
                     f'@{e["by"]}</text>'
                 )
             y += max(len(runs), 1) * 15 + 12
