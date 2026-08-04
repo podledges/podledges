@@ -273,10 +273,10 @@ def msg_markup(s):
     if msg.endswith("hit or stand?"):
         head = msg[: -len("hit or stand?")]
         return (
-            f'{head}<tspan fill="{BLUE}" font-weight="bold">hit</tspan>'
-            f'<tspan fill="{TEXT}"> or </tspan>'
+            f'{head}<tspan fill="{LIME}" font-weight="bold">hit</tspan>'
+            f'<tspan fill="{BLUE}"> or </tspan>'
             f'<tspan fill="{PINK}" font-weight="bold">stand</tspan>'
-            f'<tspan fill="{TEXT}">?</tspan>'
+            f'<tspan fill="{BLUE}">?</tspan>'
         )
     return msg
 
@@ -457,12 +457,9 @@ def render_table(s):
         for i, c in enumerate(s["player"]):
             out.append(dealt_card(tx + i * (CARD_W + 8), 142, c, 0.14 + i * 0.22))
 
-    # message line
-    msg_col = TEXT if s["phase"] == "player" else AMBER if s["phase"] == "idle" else BRIGHT
-    if s["phase"] == "broke":
-        msg_col = PINK
+    # message line — standardized high-contrast blue in every state
     out.append(
-        f'<text x="{tx}" y="{H - 16}" font-size="11" fill="{msg_col}">'
+        f'<text x="{tx}" y="{H - 16}" font-size="11" fill="{BLUE}">'
         f'&gt; {msg_markup(s)}<tspan fill="{BLUE}"> ▌'
         f'<animate attributeName="opacity" values="1;0;1" dur="1.2s" repeatCount="indefinite"/>'
         f'</tspan></text>'
