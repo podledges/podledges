@@ -1,0 +1,21 @@
+{
+  "phase": "idle",
+  "deck": [],
+  "player": [],
+  "dealer": [],
+  "msg": "table open — press play",
+  "balance": 200,
+  "session": {
+    "hands": 0,
+    "peak": 200
+  },
+  "ledger": {
+    "best": null,
+    "worst": []
+  },
+  "stats": {
+    "games": 0,
+    "pnl": 0,
+    "last": []
+  }
+}

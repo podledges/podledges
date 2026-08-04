@@ -1,0 +1,58 @@
+name: blackjack
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: blackjack-table
+  cancel-in-progress: false
+
+jobs:
+  play:
+    if: startsWith(github.event.issue.title, 'blackjack|')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: parse move
+        id: move
+        env:
+          TITLE: ${{ github.event.issue.title }}
+        run: |
+          MOVE="${TITLE#blackjack|}"
+          case "$MOVE" in
+            deal|hit|stand) echo "move=$MOVE" >> "$GITHUB_OUTPUT" ;;
+            *) echo "invalid move: $MOVE"; exit 1 ;;
+          esac
+
+      - name: play move
+        id: play
+        run: |
+          RESULT=$(python3 scripts/blackjack.py "${{ steps.move.outputs.move }}")
+          echo "result=$RESULT" >> "$GITHUB_OUTPUT"
+
+      - name: commit table
+        run: |
+          git config user.name "blackjack-dealer[bot]"
+          git config user.email "actions@github.com"
+          git add assets/blackjack.svg assets/btn_play.svg assets/btn_hit.svg assets/btn_stand.svg game/state.json
+          git commit -m "🃏 ${{ steps.move.outputs.move }} by @${{ github.event.issue.user.login }} [skip ci]" || exit 0
+          git pull --rebase origin main
+          git push
+
+      - name: reply and close
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue close ${{ github.event.issue.number }} \
+            --repo ${{ github.repository }} \
+            --comment "🃏 \`${{ steps.move.outputs.move }}\` → ${{ steps.play.outputs.result }}
+
+          The table is updated — head back to [the profile](https://github.com/${{ github.repository_owner }}) to see it. (Give the image cache a few seconds.)"
