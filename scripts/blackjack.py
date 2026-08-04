@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""README blackjack. Usage: blackjack.py init|deal|hit|stand
+"""README blackjack. Usage: blackjack.py init|deal|hit|stand [player]
 
 State lives in game/state.json; renders assets/blackjack.svg plus the
 state-aware button sprites btn_play.svg / btn_hit.svg / btn_stand.svg.
@@ -20,6 +20,7 @@ STATE = os.path.join(ROOT, "game", "state.json")
 ASSETS = os.path.join(ROOT, "assets")
 BET = 100
 STAKE = 200
+PLAYER = "anon"  # github login of whoever made the move; set in main()
 
 SUITS = ["♠", "♥", "♦", "♣"]
 RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
@@ -52,8 +53,8 @@ def fresh_state():
         "deck": [], "player": [], "dealer": [],
         "msg": "table open — press play",
         "balance": STAKE,
-        "session": {"hands": 0, "peak": STAKE},
-        "ledger": {"best": None, "worst": []},
+        "session": {"hands": 0, "peak": STAKE, "players": {}},
+        "ledger": {"best": [], "worst": []},
         "stats": {"games": 0, "pnl": 0, "last": []},
     }
 
@@ -64,6 +65,12 @@ def migrate(s):
         s.setdefault(k, v)
     for k, v in base["stats"].items():
         s["stats"].setdefault(k, v)
+    s["session"].setdefault("players", {})
+    led = s["ledger"]
+    if not isinstance(led.get("best"), list):  # pre-highscore ledger shape
+        led["best"] = [led["best"]] if led.get("best") else []
+    for e in led["best"] + led["worst"]:
+        e.setdefault("by", "anon")
     return s
 
 
@@ -82,15 +89,18 @@ def save(s):
 
 def end_session(s):
     """Run went broke — file it on the lifetime ledger."""
+    players = s["session"].get("players", {})
     entry = {
         "hands": s["session"]["hands"],
         "peak_net": s["session"]["peak"] - STAKE,
         "final": s["balance"] - STAKE,
+        "by": max(players, key=players.get) if players else PLAYER,
     }
     led = s["ledger"]
-    if led["best"] is None or entry["peak_net"] > led["best"]["peak_net"]:
-        led["best"] = entry
-    led["worst"] = sorted(led["worst"] + [entry], key=lambda e: e["hands"])[:2]
+    led["best"] = sorted(led["best"] + [entry],
+                         key=lambda e: (-e["peak_net"], e["hands"]))[:3]
+    led["worst"] = sorted(led["worst"] + [entry],
+                          key=lambda e: (e["hands"], e["peak_net"]))[:3]
 
 
 def settle(s, result, delta, msg):
@@ -100,6 +110,8 @@ def settle(s, result, delta, msg):
     s["stats"]["pnl"] += delta
     s["stats"]["last"] = (s["stats"]["last"] + [result])[-10:]
     s["session"]["hands"] += 1
+    pl = s["session"].setdefault("players", {})
+    pl[PLAYER] = pl.get(PLAYER, 0) + 1
     s["session"]["peak"] = max(s["session"]["peak"], s["balance"])
     sign = "+" if delta > 0 else ""
     tail = f" ({sign}{delta} gold)" if delta else " (push)"
@@ -121,7 +133,7 @@ def act(s, move):
                 return
         if s["phase"] == "broke":
             s["balance"] = STAKE
-            s["session"] = {"hands": 0, "peak": STAKE}
+            s["session"] = {"hands": 0, "peak": STAKE, "players": {}}
         s.update(deck=new_deck(), player=[], dealer=[], phase="player")
         s["player"] = [s["deck"].pop(), s["deck"].pop()]
         s["dealer"] = [s["deck"].pop(), s["deck"].pop()]
@@ -210,7 +222,8 @@ def card_face(card, hidden):
             f'M24,56 L40,50" stroke="{DIM}" stroke-opacity="0.45" stroke-width="1"/>'
             f'<rect x="17" y="25" width="12" height="12" transform="rotate(45 23 31)" '
             f'fill="none" stroke="{PINK}" stroke-opacity="0.8"/>'
-            f'<circle cx="23" cy="31" r="2" fill="{PINK}" fill-opacity="0.8"/>'
+            f'<text x="23" y="34.5" font-size="9" text-anchor="middle" fill="{PINK}" '
+            f'fill-opacity="0.9" font-weight="bold">?</text>'
         )
     rank, suit = card[:-1], card[-1]
     color = PINK if suit in "♥♦" else BRIGHT
@@ -308,7 +321,8 @@ def render_table(s):
 
     # podle rules
     out.append(
-        f'<text x="{px}" y="204" font-size="9" fill="{AMBER}" letter-spacing="2">PODLE RULES</text>'
+        f'<text x="{px}" y="204" font-size="9" fill="{AMBER}" letter-spacing="2" '
+        f'font-weight="bold">PODLE RULES</text>'
     )
     rules = [
         "blackjack pays 3:2",
@@ -322,14 +336,18 @@ def render_table(s):
         )
 
     # ── right column: deck + bet ──
-    for i in range(3):
+    # bottom two cards plain, top card wears the shared card-back art
+    for i in range(2):
         out.append(
             f'<rect x="{DECK_X + i * 2}" y="{DECK_Y - i * 2}" width="{CARD_W}" '
             f'height="{CARD_H}" rx="5" fill="{PANEL}" stroke="{DIM}"/>'
         )
     out.append(
+        f'<g transform="translate({DECK_X + 4},{DECK_Y - 4})">{card_face(None, True)}</g>'
+    )
+    out.append(
         f'<text x="{DECK_X + CARD_W / 2 + 2}" y="{DECK_Y + CARD_H + 16}" font-size="9" '
-        f'text-anchor="middle" fill="{DIM}" letter-spacing="2">DECK</text>'
+        f'text-anchor="middle" fill="{DIM}" letter-spacing="2" font-weight="bold">DECK</text>'
     )
     bet_cx = DECK_X + CARD_W / 2 + 2
     out.append(coin_stack(bet_cx - 14, DECK_Y + CARD_H + 52, 1.0))
@@ -339,12 +357,17 @@ def render_table(s):
     )
     out.append(
         f'<text x="{bet_cx + 2}" y="{DECK_Y + CARD_H + 68}" font-size="9" '
-        f'text-anchor="middle" fill="{DIM}" letter-spacing="2">BET</text>'
+        f'text-anchor="middle" fill="{DIM}" letter-spacing="2" font-weight="bold">BET</text>'
     )
 
     # ── table area ──
     if s["phase"] == "idle":
         cx = (tx + DECK_X) / 2 - 10
+        out.append(
+            f'<text x="{cx}" y="64" font-size="17" text-anchor="middle" fill="{BRIGHT}" '
+            f'letter-spacing="5" font-weight="bold"><tspan fill="{BLUE}">♠</tspan> '
+            f'INFINITE BLACKJACK <tspan fill="{PINK}">♥</tspan></text>'
+        )
         out.append(
             f'<text x="{cx}" y="112" font-size="14" text-anchor="middle" fill="{BRIGHT}" '
             f'letter-spacing="2">▮ NO HAND IN PLAY</text>'
@@ -361,31 +384,34 @@ def render_table(s):
     elif s["phase"] == "broke":
         cx = (tx + DECK_X) / 2 - 10
         led = s["ledger"]
-        out.append(
-            f'<text x="{cx}" y="52" font-size="14" text-anchor="middle" fill="{PINK}" '
-            f'letter-spacing="3" font-weight="bold">☠ OUT OF GOLD</text>'
-        )
-        out.append(
-            f'<text x="{cx}" y="80" font-size="10" text-anchor="middle" fill="{AMBER}" '
-            f'letter-spacing="2">LIFETIME LEDGER</text>'
-        )
-        best = led["best"]
-        rows = []
-        if best:
-            rows.append((LIME, f"best run    peak +{best['peak_net']} gold · {best['hands']} hands"))
         me = s["session"]
-        rows.append((BRIGHT, f"this run    peak +{me['peak'] - STAKE} gold · {me['hands']} hands ◄ you"))
-        worst = [e for e in led["worst"]]
-        if worst:
-            fastest = " · ".join(f"{e['hands']} hands" for e in worst)
-            rows.append((PINK, f"worst runs  broke in {fastest}"))
-        for i, (col, line) in enumerate(rows):
-            out.append(
-                f'<text x="{cx}" y="{106 + i * 22}" font-size="11" text-anchor="middle" '
-                f'fill="{col}" xml:space="preserve">{line}</text>'
-            )
         out.append(
-            f'<text x="{cx}" y="{106 + len(rows) * 22 + 14}" font-size="10" '
+            f'<text x="{cx}" y="52" font-size="16" text-anchor="middle" fill="{BRIGHT}" '
+            f'letter-spacing="3" font-weight="bold">'
+            f'<tspan font-size="21">☠</tspan> OUT OF GOLD <tspan font-size="21">☠</tspan></text>'
+        )
+        out.append(
+            f'<text x="{cx}" y="80" font-size="12" text-anchor="middle" fill="{BRIGHT}" '
+            f'font-weight="bold">YOUR SCORE: <tspan fill="{AMBER}">peak '
+            f'+{me["peak"] - STAKE} gold · {me["hands"]} hands</tspan></text>'
+        )
+        lx, ex = tx + 16, tx + 104
+        y = 106
+        for label, col, runs in (("Best Runs:", LIME, led["best"][:3]),
+                                 ("Worst Runs:", PINK, led["worst"][:3])):
+            out.append(
+                f'<text x="{lx}" y="{y}" font-size="10" fill="{col}" '
+                f'font-weight="bold">{label}</text>'
+            )
+            for i, e in enumerate(runs):
+                out.append(
+                    f'<text x="{ex}" y="{y + i * 15}" font-size="10" fill="{col}">'
+                    f'{i + 1}. peak +{e["peak_net"]} gold · {e["hands"]} hands · '
+                    f'@{e["by"]}</text>'
+                )
+            y += max(len(runs), 1) * 15 + 12
+        out.append(
+            f'<text x="{cx}" y="{y + 4}" font-size="10" '
             f'text-anchor="middle" fill="{TEXT}">press <tspan fill="{AMBER}">▶ PLAY</tspan> '
             f'to re-buy <tspan fill="{GOLD}">{STAKE} gold</tspan></text>'
         )
@@ -403,7 +429,8 @@ def render_table(s):
                            hidden=hide_hole and i == 1)
             )
         out.append(
-            f'<text x="{tx}" y="134" font-size="11" fill="{DIM}" letter-spacing="1">PLAYER '
+            f'<text x="{tx}" y="134" font-size="11" fill="{DIM}" letter-spacing="1" '
+            f'font-weight="bold">PLAYER '
             f'<tspan fill="{BLUE}">[{pv}]</tspan></text>'
         )
         for i, c in enumerate(s["player"]):
@@ -468,9 +495,12 @@ def render_buttons(s):
 def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    global PLAYER
     move = sys.argv[1] if len(sys.argv) > 1 else "deal"
     if move not in ("init", "deal", "hit", "stand"):
         sys.exit(f"unknown move: {move}")
+    if len(sys.argv) > 2 and sys.argv[2].strip():
+        PLAYER = sys.argv[2].strip()
     s = fresh_state() if move == "init" else load()
     if move != "init":
         act(s, move)

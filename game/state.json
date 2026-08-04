@@ -7,10 +7,11 @@
   "balance": 200,
   "session": {
     "hands": 0,
-    "peak": 200
+    "peak": 200,
+    "players": {}
   },
   "ledger": {
-    "best": null,
+    "best": [],
     "worst": []
   },
   "stats": {

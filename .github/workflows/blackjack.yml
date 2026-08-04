@@ -34,8 +34,10 @@ jobs:
 
       - name: play move
         id: play
+        env:
+          PLAYER: ${{ github.event.issue.user.login }}
         run: |
-          RESULT=$(python3 scripts/blackjack.py "${{ steps.move.outputs.move }}")
+          RESULT=$(python3 scripts/blackjack.py "${{ steps.move.outputs.move }}" "$PLAYER")
           echo "result=$RESULT" >> "$GITHUB_OUTPUT"
 
       - name: commit table
