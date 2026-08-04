@@ -1,5 +1,5 @@
 {
-  "phase": "player",
+  "phase": "broke",
   "deck": [
     "3♣",
     "J♠",
@@ -47,8 +47,7 @@
     "8♥",
     "7♣",
     "A♣",
-    "5♣",
-    "A♥"
+    "5♣"
   ],
   "player": [
     "9♥",
@@ -56,25 +55,41 @@
   ],
   "dealer": [
     "6♠",
-    "3♠"
+    "3♠",
+    "A♥"
   ],
-  "msg": "you show 19. hit or stand?",
-  "balance": 100,
+  "msg": "20 beats 19 (-100 gold) — out of gold.",
+  "balance": 0,
   "session": {
-    "hands": 1,
+    "hands": 2,
     "peak": 200,
     "players": {
-      "podledges": 1
+      "podledges": 2
     }
   },
   "ledger": {
-    "best": [],
-    "worst": []
+    "best": [
+      {
+        "hands": 2,
+        "peak_net": 0,
+        "final": -200,
+        "by": "podledges"
+      }
+    ],
+    "worst": [
+      {
+        "hands": 2,
+        "peak_net": 0,
+        "final": -200,
+        "by": "podledges"
+      }
+    ]
   },
   "stats": {
-    "games": 1,
-    "pnl": -100,
+    "games": 2,
+    "pnl": -200,
     "last": [
+      "L",
       "L"
     ]
   }
