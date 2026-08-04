@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>INFINITE BLACKJACK</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --border:#30363d; --dim:#46586a;
+    --text:#93a7b8; --bright:#e8f1f8; --blue:#7fd0f5; --pink:#ff54a8;
+    --amber:#f5b043; --lime:#ccff5e; --gold:#f5c95c;
+    --mono:ui-monospace,'JetBrains Mono','Cascadia Code',Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg);margin:0;min-height:100vh;display:flex;flex-direction:column;
+       align-items:center;justify-content:center;gap:14px;padding:24px 12px;font-family:var(--mono)}
+  #table{width:700px;max-width:100%}
+  #table svg{width:100%;height:auto;display:block}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+  button{font-family:var(--mono);width:150px;height:44px;border-radius:6px;cursor:pointer;
+         background:var(--panel);display:flex;flex-direction:column;align-items:center;
+         justify-content:center;gap:2px;padding:0}
+  button .l{font-size:12px;letter-spacing:2px;font-weight:bold}
+  button .s{font-size:8px;letter-spacing:1px;color:var(--text)}
+  button:disabled{background:var(--bg);border:1px dashed var(--dim)!important;opacity:.6;cursor:default}
+  button:disabled .l,button:disabled .s{color:var(--dim)!important}
+  #play{border:1.5px solid var(--amber)} #play .l{color:var(--amber)}
+  #hit{border:1.5px solid var(--lime)}  #hit .l{color:var(--lime)}
+  #stand{border:1.5px solid var(--pink)} #stand .l{color:var(--pink)}
+  button:not(:disabled){animation:pulse 1.8s infinite}
+  @keyframes pulse{0%,100%{filter:none}50%{filter:brightness(.7)}}
+  button:not(:disabled):hover{filter:brightness(1.25)!important;animation:none}
+  .foot{font-size:10px;color:var(--dim);text-align:center;line-height:1.7;max-width:700px}
+  .foot a{color:var(--blue);text-decoration:none}
+  .name{display:flex;gap:6px;align-items:center;font-size:10px;color:var(--dim)}
+  .name input{background:var(--panel);border:1px solid var(--border);border-radius:6px;
+              color:var(--bright);font-family:var(--mono);font-size:10px;padding:4px 8px;width:130px}
+</style>
+</head>
+<body>
+<div id="table"></div>
+<div class="btns">
+  <button id="play"><span class="l">▶ PLAY</span><span class="s">deal a hand · 100 gold</span></button>
+  <button id="hit"><span class="l">+ HIT</span><span class="s">draw another card</span></button>
+  <button id="stand"><span class="l">■ STAND</span><span class="s">podles plays out</span></button>
+</div>
+<div class="name">ledger name: <input id="pname" maxlength="20" spellcheck="false"></div>
+<div class="foot">
+  this table is yours alone — instant, no login, saved in your browser<br>
+  the <a href="https://github.com/podledges">shared eternal table</a> lives on the profile: same game, every hand on the record
+</div>
+
+<script>
+"use strict";
+// ── constants (mirror scripts/blackjack.py) ─────────────────────────────
+const BET=100, STAKE=200;
+const C={BG:"#0d1117",PANEL:"#161b22",BORDER:"#30363d",DIM:"#46586a",TEXT:"#93a7b8",
+  BRIGHT:"#e8f1f8",BLUE:"#7fd0f5",PINK:"#ff54a8",AMBER:"#f5b043",LIME:"#ccff5e",
+  GOLD:"#f5c95c",GOLD_DARK:"#a97e22"};
+const MONO="ui-monospace,'JetBrains Mono','Cascadia Code',Consolas,monospace";
+const CW=46, CH=62, DX=606, DY=60;
+const SUITS=["♠","♥","♦","♣"], RANKS=["A","2","3","4","5","6","7","8","9","10","J","Q","K"];
+const COIN_PIX=["....####....","..##yyyy##..",".#hyyyyyyg#.",".#hyydddyg#.","#yhyydydyyg#",
+  "#yhyydddyyg#","#yhyydyyyyg#",".#hyydyyyg#.",".#hyyyyyyg#.","..##gggg##..","....####...."];
+const COIN_COLS={"#":"#161006",y:C.GOLD,d:C.GOLD_DARK,h:"#ffe9a8",g:"#c9992e"};
+
+// ── state ───────────────────────────────────────────────────────────────
+const KEY="podle-blackjack";
+function freshState(){return{phase:"idle",deck:[],player:[],dealer:[],
+  msg:"table open — press play",balance:STAKE,session:{hands:0,peak:STAKE},
+  ledger:{best:[],worst:[]},stats:{games:0,pnl:0,last:[]}};}
+let S; try{S=Object.assign(freshState(),JSON.parse(localStorage.getItem(KEY))||{});}catch{S=freshState();}
+const save=()=>localStorage.setItem(KEY,JSON.stringify(S));
+const pname=document.getElementById("pname");
+pname.value=localStorage.getItem(KEY+"-name")||"anon";
+pname.onchange=()=>localStorage.setItem(KEY+"-name",pname.value.trim()||"anon");
+const who=()=>pname.value.trim()||"anon";
+
+// ── game logic ──────────────────────────────────────────────────────────
+function newDeck(){
+  const d=[]; for(const s of SUITS) for(const r of RANKS) d.push(r+s);
+  const buf=new Uint32Array(d.length); crypto.getRandomValues(buf);
+  for(let i=d.length-1;i>0;i--){const j=buf[i]%(i+1);[d[i],d[j]]=[d[j],d[i]];}
+  return d;
+}
+function handValue(h){
+  let t=0,a=0;
+  for(const c of h){const r=c.slice(0,-1);
+    if(r==="A"){t+=11;a++;}else if("JQK".includes(r)){t+=10;}else t+=+r;}
+  while(t>21&&a){t-=10;a--;}
+  return t;
+}
+function endSession(){
+  const e={hands:S.session.hands,peak_net:S.session.peak-STAKE,final:S.balance-STAKE,by:who()};
+  S.ledger.best=[...S.ledger.best,e].sort((x,y)=>y.peak_net-x.peak_net||x.hands-y.hands).slice(0,3);
+  S.ledger.worst=[...S.ledger.worst,e].sort((x,y)=>x.hands-y.hands||x.peak_net-y.peak_net).slice(0,3);
+}
+function settle(res,delta,msg){
+  S.balance+=delta; S.stats.games++; S.stats.pnl+=delta;
+  S.stats.last=[...S.stats.last,res].slice(-10);
+  S.session.hands++; S.session.peak=Math.max(S.session.peak,S.balance);
+  const tail=delta?` (${delta>0?"+":""}${delta} gold)`:" (push)";
+  if(S.balance<BET){S.phase="broke";endSession();S.msg=`${msg}${tail} — out of gold.`;}
+  else{S.phase="done";S.msg=`${msg}${tail}`;}
+}
+function act(move){
+  if(move==="deal"){
+    if(S.phase==="player"){settle("L",-BET,"hand abandoned");if(S.phase==="broke")return;}
+    if(S.phase==="broke"){S.balance=STAKE;S.session={hands:0,peak:STAKE};}
+    S.deck=newDeck();S.player=[S.deck.pop(),S.deck.pop()];S.dealer=[S.deck.pop(),S.deck.pop()];
+    S.phase="player";
+    const pv=handValue(S.player),dv=handValue(S.dealer);
+    if(pv===21&&dv===21)settle("P",0,"double blackjack — push");
+    else if(pv===21)settle("W",Math.floor(BET*1.5),"blackjack!");
+    else if(dv===21)settle("L",-BET,"podles has blackjack");
+    else S.msg=`you show ${pv}. hit or stand?`;
+    return;
+  }
+  if(S.phase!=="player"){S.msg="no live hand — press play.";return;}
+  if(move==="hit"){
+    S.player.push(S.deck.pop());
+    const pv=handValue(S.player);
+    if(pv>21)settle("L",-BET,`bust at ${pv}`);
+    else if(pv===21)act("stand");
+    else S.msg=`drew ${S.player.at(-1)} — ${pv}. hit or stand?`;
+  }else if(move==="stand"){
+    while(handValue(S.dealer)<17)S.dealer.push(S.deck.pop());
+    const pv=handValue(S.player),dv=handValue(S.dealer);
+    if(dv>21)settle("W",BET,`podles busts at ${dv}`);
+    else if(pv>dv)settle("W",BET,`${pv} beats ${dv}`);
+    else if(pv<dv)settle("L",-BET,`${dv} beats ${pv}`);
+    else settle("P",0,`push at ${pv}`);
+  }
+}
+
+// ── rendering (mirror of render_table) ──────────────────────────────────
+const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+function pixelCoin(x,y,size){
+  const p=size/12,o=['<g shape-rendering="crispEdges">'];
+  COIN_PIX.forEach((row,r)=>{[...row].forEach((ch,c)=>{
+    if(ch!==".")o.push(`<rect x="${(x+c*p).toFixed(2)}" y="${(y+r*p).toFixed(2)}" width="${p.toFixed(2)}" height="${p.toFixed(2)}" fill="${COIN_COLS[ch]}"/>`);
+  });});
+  o.push("</g>");return o.join("");
+}
+function cardFace(card,hidden){
+  if(hidden)return `<rect width="${CW}" height="${CH}" rx="5" fill="${C.PANEL}" stroke="${C.DIM}"/>`
+    +`<rect x="4" y="4" width="${CW-8}" height="${CH-8}" rx="3" fill="none" stroke="${C.DIM}" stroke-opacity="0.7"/>`
+    +`<path d="M6,14 L18,6 M6,26 L30,6 M6,38 L40,14 M6,50 L40,26 M12,56 L40,38 M24,56 L40,50" stroke="${C.DIM}" stroke-opacity="0.45" stroke-width="1"/>`
+    +`<rect x="17" y="25" width="12" height="12" transform="rotate(45 23 31)" fill="none" stroke="${C.PINK}" stroke-opacity="0.8"/>`
+    +`<text x="23" y="34.5" font-size="9" text-anchor="middle" fill="${C.PINK}" fill-opacity="0.9" font-weight="bold">?</text>`;
+  const rank=card.slice(0,-1),suit=card.at(-1),col=("♥♦".includes(suit))?C.PINK:C.BRIGHT;
+  return `<rect width="${CW}" height="${CH}" rx="5" fill="${C.PANEL}" stroke="${C.BORDER}"/>`
+    +`<text x="7" y="17" font-size="13" fill="${col}">${rank}</text>`
+    +`<text x="${CW/2}" y="${CH/2+10}" font-size="17" text-anchor="middle" fill="${col}">${suit}</text>`
+    +`<text x="${CW-7}" y="${CH-8}" font-size="13" text-anchor="end" fill="${col}">${rank}</text>`;
+}
+function dealtCard(x,y,card,delay,hidden){
+  const dx=DX-x,dy=DY-y;
+  return `<g transform="translate(${x},${y})"><g opacity="0">`
+    +`<animate attributeName="opacity" to="1" begin="${delay.toFixed(2)}s" dur="0.2s" fill="freeze"/>`
+    +`<animateTransform attributeName="transform" type="translate" from="${dx} ${dy}" to="0 0" begin="${delay.toFixed(2)}s" dur="0.4s" fill="freeze" calcMode="spline" keySplines="0.2 0.8 0.2 1"/>`
+    +cardFace(card,hidden)+`</g></g>`;
+}
+function msgMarkup(){
+  const m=esc(S.msg);
+  if(m.endsWith("hit or stand?")){
+    const head=m.slice(0,-"hit or stand?".length);
+    return `${head}<tspan fill="${C.LIME}" font-weight="bold">hit</tspan><tspan fill="${C.BLUE}"> or </tspan>`
+      +`<tspan fill="${C.PINK}" font-weight="bold">stand</tspan><tspan fill="${C.BLUE}">?</tspan>`;
+  }
+  return m;
+}
+function renderTable(){
+  const W=700,H=292,st=S.stats,hide=S.phase==="player",px=22,pr=212,tx=252;
+  const o=[`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="${MONO}">`,
+    `<rect x="0.5" y="0.5" width="${W-1}" height="${H-1}" rx="6" fill="${C.BG}" stroke="${C.BORDER}"/>`,
+    `<line x1="232" y1="16" x2="232" y2="${H-16}" stroke="${C.BORDER}"/>`,
+    `<text x="${px}" y="32" font-size="11" fill="${C.BLUE}" letter-spacing="2" font-weight="bold">PODLE STATS</text>`,
+    `<line x1="${px}" y1="42" x2="${pr}" y2="42" stroke="${C.BORDER}"/>`];
+  o.push(pixelCoin(px+1,56,16));
+  o.push(`<text x="${px+26}" y="70" font-size="11" fill="${C.DIM}">Gold<tspan x="${pr}" text-anchor="end" fill="${S.balance>=BET?C.GOLD:C.PINK}" font-weight="bold">${S.balance}</tspan></text>`);
+  const pnl=st.pnl,pc=pnl>0?C.LIME:pnl<0?C.PINK:C.TEXT;
+  o.push(`<text x="${px}" y="96" font-size="10" fill="${C.DIM}">Total Podles win <tspan font-size="8">(LIFETIME)</tspan><tspan x="${pr}" text-anchor="end" font-size="11" fill="${pc}">${pnl>0?"+":""}${pnl}</tspan></text>`);
+  o.push(`<text x="${px}" y="120" font-size="11" fill="${C.DIM}">Games<tspan x="${pr}" text-anchor="end" fill="${C.BRIGHT}">${st.games}</tspan></text>`);
+  o.push(`<text x="${px}" y="148" font-size="11" fill="${C.DIM}">Last 10 Rounds <tspan font-size="8">(HERE)</tspan></text>`);
+  for(let i=0;i<10;i++){
+    const cx=px+8+i*19;
+    if(i<st.last.length){
+      const r=st.last[i],col=r==="W"?C.LIME:r==="L"?C.PINK:C.AMBER;
+      o.push(`<circle cx="${cx}" cy="168" r="8" fill="none" stroke="${col}" stroke-width="1.3"/>`);
+      o.push(`<text x="${cx}" y="171" font-size="8" text-anchor="middle" fill="${col}">${r}</text>`);
+    }else o.push(`<circle cx="${cx}" cy="168" r="8" fill="none" stroke="${C.DIM}" stroke-dasharray="2,3"/>`);
+  }
+  o.push(`<text x="${px}" y="204" font-size="9" fill="${C.AMBER}" letter-spacing="2" font-weight="bold">PODLE RULES</text>`);
+  ["Blackjack pays 3:2","Podles stands on 17","Quitting a hand = loss",`Start ${STAKE} gold · ${BET}/hand`]
+    .forEach((r,i)=>o.push(`<text x="${px}" y="${222+i*15}" font-size="9" fill="${C.DIM}">· ${r}</text>`));
+  for(let i=0;i<2;i++)o.push(`<rect x="${DX+i*2}" y="${DY-i*2}" width="${CW}" height="${CH}" rx="5" fill="${C.PANEL}" stroke="${C.DIM}"/>`);
+  o.push(`<g transform="translate(${DX+4},${DY-4})">${cardFace(null,true)}</g>`);
+  o.push(`<text x="${DX+CW/2+2}" y="${DY+CH+16}" font-size="9" text-anchor="middle" fill="${C.DIM}" letter-spacing="2" font-weight="bold">DECK</text>`);
+  const bcx=DX+CW/2+2;
+  o.push(pixelCoin(bcx-26,DY+CH+36,18));
+  o.push(`<text x="${bcx-1}" y="${DY+CH+52}" font-size="11" fill="${C.GOLD}" font-weight="bold">${BET}</text>`);
+  o.push(`<text x="${bcx+2}" y="${DY+CH+68}" font-size="9" text-anchor="middle" fill="${C.DIM}" letter-spacing="2" font-weight="bold">BET</text>`);
+  const cx=(tx+DX)/2-10;
+  if(S.phase==="idle"){
+    o.push(`<text x="${cx}" y="64" font-size="17" text-anchor="middle" fill="${C.BRIGHT}" letter-spacing="5" font-weight="bold"><tspan fill="${C.BLUE}">♠</tspan> INFINITE BLACKJACK <tspan fill="${C.PINK}">♥</tspan></text>`);
+    o.push(`<text x="${cx}" y="112" font-size="14" text-anchor="middle" fill="${C.BRIGHT}" letter-spacing="2">▮ NO HAND IN PLAY</text>`);
+    o.push(`<text x="${cx}" y="140" font-size="11" text-anchor="middle" fill="${C.TEXT}">press <tspan fill="${C.AMBER}">▶ PLAY</tspan> to sit down with <tspan fill="${C.GOLD}">${STAKE} gold</tspan></text>`);
+    o.push(`<text x="${cx}" y="160" font-size="10" text-anchor="middle" fill="${C.DIM}">${BET} a hand · podles stands on 17</text>`);
+  }else if(S.phase==="broke"){
+    o.push(`<text x="${cx}" y="52" font-size="16" text-anchor="middle" fill="${C.BRIGHT}" letter-spacing="3" font-weight="bold"><tspan font-size="21">☠</tspan> OUT OF GOLD <tspan font-size="21">☠</tspan></text>`);
+    o.push(`<text x="${cx}" y="80" font-size="12" text-anchor="middle" fill="${C.BRIGHT}" font-weight="bold">YOUR SCORE: <tspan fill="${C.AMBER}">PEAKED +${S.session.peak-STAKE} Gold · ${S.session.hands} Hands</tspan></text>`);
+    const lx=tx+16,ex=tx+104;let y=106;
+    for(const[label,col,runs]of[["Best Runs:",C.LIME,S.ledger.best.slice(0,3)],["Worst Runs:",C.PINK,S.ledger.worst.slice(0,3)]]){
+      o.push(`<text x="${lx}" y="${y}" font-size="10" fill="${col}" font-weight="bold">${label}</text>`);
+      runs.forEach((e,i)=>o.push(`<text x="${ex}" y="${y+i*15}" font-size="10" fill="${col}">${i+1}. +${e.peak_net} gold · ${e.hands} hands · @${esc(e.by)}</text>`));
+      y+=Math.max(runs.length,1)*15+12;
+    }
+    o.push(`<text x="${cx}" y="${y+4}" font-size="10" text-anchor="middle" fill="${C.TEXT}">press <tspan fill="${C.AMBER}">▶ PLAY</tspan> to re-buy <tspan fill="${C.GOLD}">${STAKE} gold</tspan></text>`);
+  }else{
+    const dv=handValue(S.dealer),pv=handValue(S.player);
+    o.push(`<text x="${tx}" y="34" font-size="11" fill="${C.AMBER}" letter-spacing="1" font-weight="bold">PODLES [${hide?"??":dv}]</text>`);
+    S.dealer.forEach((c,i)=>o.push(dealtCard(tx+i*(CW+8),42,c,0.25+i*0.22,hide&&i===1)));
+    o.push(`<text x="${tx}" y="134" font-size="11" fill="${C.DIM}" letter-spacing="1" font-weight="bold">PLAYER <tspan fill="${C.BLUE}">[${pv}]</tspan></text>`);
+    S.player.forEach((c,i)=>o.push(dealtCard(tx+i*(CW+8),142,c,0.14+i*0.22)));
+  }
+  o.push(`<text x="${tx}" y="${H-16}" font-size="11" fill="${C.BLUE}">&gt; ${msgMarkup()}<tspan fill="${C.BLUE}"> ▌<animate attributeName="opacity" values="1;0;1" dur="1.2s" repeatCount="indefinite"/></tspan></text>`);
+  o.push("</svg>");
+  return o.join("");
+}
+
+// ── wiring ──────────────────────────────────────────────────────────────
+const tableEl=document.getElementById("table");
+const btn={play:document.getElementById("play"),hit:document.getElementById("hit"),stand:document.getElementById("stand")};
+function draw(){
+  tableEl.innerHTML=renderTable();
+  const live=S.phase==="player";
+  btn.hit.disabled=!live; btn.stand.disabled=!live;
+  const pl=btn.play.querySelector(".l"),ps=btn.play.querySelector(".s");
+  if(live){pl.textContent="⟳ REDEAL";ps.textContent=`abandons hand · -${BET} gold`;}
+  else if(S.phase==="broke"){pl.textContent="▶ REBUY";ps.textContent=`fresh ${STAKE} gold`;}
+  else{pl.textContent="▶ PLAY";ps.textContent=`deal a hand · ${BET} gold`;}
+  save();
+}
+btn.play.onclick=()=>{act("deal");draw();};
+btn.hit.onclick=()=>{act("hit");draw();};
+btn.stand.onclick=()=>{act("stand");draw();};
+addEventListener("keydown",e=>{
+  if(e.key==="d"||e.key==="p")btn.play.click();
+  if(e.key==="h"&&!btn.hit.disabled)btn.hit.click();
+  if(e.key==="s"&&!btn.stand.disabled)btn.stand.click();
+});
+draw();
+</script>
+</body>
+</html>
