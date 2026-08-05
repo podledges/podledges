@@ -1,0 +1,17 @@
+name = "podledges-blackjack"
+main = "src/index.ts"
+compatibility_date = "2026-08-05"
+workers_dev = true
+preview_urls = false
+
+[vars]
+GITHUB_REPOSITORY = "podledges/podledges"
+
+[durable_objects]
+bindings = [
+  { name = "BLACKJACK_TABLE", class_name = "BlackjackTable" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["BlackjackTable"]

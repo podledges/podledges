@@ -36,10 +36,20 @@
   .name{display:flex;gap:6px;align-items:center;font-size:10px;color:var(--dim)}
   .name input{background:var(--panel);border:1px solid var(--border);border-radius:6px;
               color:var(--bright);font-family:var(--mono);font-size:10px;padding:4px 8px;width:130px}
+  .modes{display:flex;gap:6px;justify-content:center}
+  .mode{width:150px;height:30px;min-height:30px;border:1px solid var(--border);color:var(--dim);
+        font-size:10px;letter-spacing:1px;animation:none!important}
+  .mode.active{border-color:var(--blue);color:var(--blue);background:var(--panel)}
+  .mode:disabled{opacity:.6}
+  #status{min-height:16px;font-size:10px;color:var(--dim);text-align:center}
 </style>
 </head>
 <body>
 <div id="table"></div>
+<div class="modes" role="tablist" aria-label="table mode">
+  <button class="mode active" id="solo-mode" role="tab" aria-selected="true">SOLO TABLE</button>
+  <button class="mode" id="shared-mode" role="tab" aria-selected="false">SHARED TABLE</button>
+</div>
 <div class="btns">
   <button id="play"><span class="l">▶ PLAY</span><span class="s">deal a hand · 100 gold</span></button>
   <button id="hit"><span class="l">+ HIT</span><span class="s">draw another card</span></button>
@@ -47,8 +57,9 @@
   <button id="walk"><span class="l">⇐ WALK</span><span class="s">cash out · save your run</span></button>
 </div>
 <div class="name">ledger name: <input id="pname" maxlength="20" spellcheck="false"></div>
+<div id="status" aria-live="polite"></div>
 <div class="foot">
-  this table is yours alone — instant, no login, saved in your browser<br>
+  <span id="mode-note">this table is yours alone — instant, no login, saved in your browser</span><br>
   the <a href="https://github.com/podledges">shared eternal table</a> lives on the profile: same game, every hand on the record
 </div>
 
@@ -68,8 +79,12 @@ const COIN_COLS={"#":"#161006",y:C.GOLD,d:C.GOLD_DARK,h:"#ffe9a8",g:"#c9992e"};
 
 // ── state ───────────────────────────────────────────────────────────────
 const KEY="podle-blackjack";
+// Set this to the deployed Worker URL before enabling the shared table.
+const WORKER_URL="https://podledges-blackjack.ayden-vanetten.workers.dev";
+const SOLO_MODE="solo", SHARED_MODE="shared";
+let mode=SOLO_MODE, sharedReady=false, sharedLoading=false, sharedBusy=false;
 function freshState(){return{phase:"idle",deck:[],player:[],dealer:[],
-  msg:"table open — press play",balance:STAKE,session:{hands:0,peak:STAKE},
+  msg:"table open — press play",balance:STAKE,session:{hands:0,peak:STAKE,players:{}},
   ledger:{best:[],worst:[]},stats:{games:0,pnl:0,last:[]}};}
 function hydrate(raw){
   const base=freshState();
@@ -98,17 +113,30 @@ function hydrate(raw){
   if(!Number.isFinite(s.balance))s.balance=base.balance;
   if(!Number.isFinite(s.session.hands))s.session.hands=base.session.hands;
   if(!Number.isFinite(s.session.peak))s.session.peak=base.session.peak;
+  if(!s.session.players||typeof s.session.players!=="object"||Array.isArray(s.session.players))s.session.players={};
   return s;
 }
-let S; try{S=hydrate(JSON.parse(localStorage.getItem(KEY))||{});}catch{S=freshState();}
-const save=()=>localStorage.setItem(KEY,JSON.stringify(S));
+function soloState(){try{return hydrate(JSON.parse(localStorage.getItem(KEY))||{});}catch{return freshState();}}
+let S=soloState();
+const save=()=>{if(mode===SOLO_MODE)localStorage.setItem(KEY,JSON.stringify(S));};
+const copyState=s=>hydrate(JSON.parse(JSON.stringify(s)));
+function statePayload(payload){
+  if(payload&&payload.state&&typeof payload.state==="object")return payload.state;
+  return payload;
+}
+function comparableState(s){
+  return JSON.stringify({phase:s.phase,deck:s.deck,player:s.player,dealer:s.dealer,msg:s.msg,
+    balance:s.balance,session:s.session,ledger:s.ledger,stats:s.stats});
+}
+function workerUrl(){return WORKER_URL.trim().replace(/\/+$/,"");}
+function configuredWorker(){return workerUrl()&&!WORKER_URL.includes("YOUR-BLACKJACK-WORKER");}
 // tracks what was actually on the table in the previous render, so dealtCard()
 // only animates cards that are genuinely new (reset whenever a fresh hand is dealt)
 let prev={player:S.player.length,dealer:S.dealer.length,hide:S.phase==="player"};
 const pname=document.getElementById("pname");
 pname.value=localStorage.getItem(KEY+"-name")||"anon";
 pname.onchange=()=>localStorage.setItem(KEY+"-name",pname.value.trim()||"anon");
-const who=()=>pname.value.trim()||"anon";
+const who=()=>pname.value.trim().slice(0,20)||"anon";
 
 // ── game logic ──────────────────────────────────────────────────────────
 function newDeck(){
@@ -125,7 +153,9 @@ function handValue(h){
   return t;
 }
 function endSession(){
-  const e={hands:S.session.hands,peak_net:S.session.peak-STAKE,final:S.balance-STAKE,by:who()};
+  const players=S.session.players||{};
+  const by=Object.entries(players).sort((a,b)=>b[1]-a[1])[0]?.[0]||who();
+  const e={hands:S.session.hands,peak_net:S.session.peak-STAKE,final:S.balance-STAKE,by};
   S.ledger.best=[...S.ledger.best,e].sort((x,y)=>y.peak_net-x.peak_net||x.hands-y.hands).slice(0,3);
   S.ledger.worst=[...S.ledger.worst,e].sort((x,y)=>x.hands-y.hands||x.peak_net-y.peak_net).slice(0,3);
 }
@@ -133,6 +163,8 @@ function settle(res,delta,msg){
   S.balance+=delta; S.stats.games++; S.stats.pnl+=delta;
   S.stats.last=[...S.stats.last,res].slice(-10);
   S.session.hands++; S.session.peak=Math.max(S.session.peak,S.balance);
+  S.session.players=S.session.players||{};
+  S.session.players[who()]=(S.session.players[who()]||0)+1;
   const tail=delta?` (${delta>0?"+":""}${delta} gold)`:" (push)";
   if(S.balance<BET){S.phase="broke";endSession();S.msg=`${msg}${tail} — out of gold.`;}
   else{S.phase="done";S.msg=`${msg}${tail}`;}
@@ -147,7 +179,7 @@ function walk(){
 function act(move){
   if(move==="deal"){
     if(S.phase==="player"){settle("L",-BET,"hand abandoned");if(S.phase==="broke")return;}
-    if(S.phase==="broke"||S.phase==="walked"){S.balance=STAKE;S.session={hands:0,peak:STAKE};}
+    if(S.phase==="broke"||S.phase==="walked"){S.balance=STAKE;S.session={hands:0,peak:STAKE,players:{}};}
     S.deck=newDeck();S.player=[S.deck.pop(),S.deck.pop()];S.dealer=[S.deck.pop(),S.deck.pop()];
     S.phase="player";
     prev={player:0,dealer:0,hide:true}; // fresh hand — every card dealt is new
@@ -305,24 +337,104 @@ function renderTable(){
 
 // ── wiring ──────────────────────────────────────────────────────────────
 const tableEl=document.getElementById("table");
+const statusEl=document.getElementById("status");
+const modeNote=document.getElementById("mode-note");
+const soloMode=document.getElementById("solo-mode"),sharedMode=document.getElementById("shared-mode");
 const btn={play:document.getElementById("play"),hit:document.getElementById("hit"),stand:document.getElementById("stand"),walk:document.getElementById("walk")};
+let sharedRequest=0;
+function status(message,kind="info"){
+  statusEl.textContent=message;
+  statusEl.style.color=kind==="error"?C.PINK:kind==="conflict"?C.AMBER:C.DIM;
+}
+function updateModeUi(){
+  const shared=mode===SHARED_MODE;
+  soloMode.classList.toggle("active",!shared); soloMode.setAttribute("aria-selected",String(!shared));
+  sharedMode.classList.toggle("active",shared); sharedMode.setAttribute("aria-selected",String(shared));
+  modeNote.textContent=shared
+    ?"shared table — instant, everyone sees the same hand; moves are attributed by name"
+    :"this table is yours alone — instant, no login, saved in your browser";
+}
 function draw(){
   tableEl.innerHTML=renderTable();
   prev={player:S.player.length,dealer:S.dealer.length,hide:S.phase==="player"};
-  const live=S.phase==="player";
-  btn.hit.disabled=!live; btn.stand.disabled=!live;
-  btn.walk.disabled=S.phase!=="done";
+  const live=S.phase==="player", waiting=mode===SHARED_MODE&&(!sharedReady||sharedLoading||sharedBusy);
+  btn.play.disabled=waiting; btn.hit.disabled=!live||waiting; btn.stand.disabled=!live||waiting;
+  btn.walk.disabled=S.phase!=="done"||waiting;
   const pl=btn.play.querySelector(".l"),ps=btn.play.querySelector(".s");
   if(live){pl.textContent="⟳ REDEAL";ps.textContent=`abandons hand · -${BET} gold`;}
   else if(S.phase==="broke"){pl.textContent="▶ REBUY";ps.textContent=`fresh ${STAKE} gold`;}
   else if(S.phase==="walked"){pl.textContent="▶ NEW RUN";ps.textContent=`fresh ${STAKE} gold`;}
   else{pl.textContent="▶ PLAY";ps.textContent=`deal a hand · ${BET} gold`;}
+  if(sharedLoading){pl.textContent="… CONNECTING";ps.textContent="loading shared table";}
+  else if(sharedBusy){pl.textContent="… SYNCING";ps.textContent="waiting for table";}
   save();
 }
-btn.play.onclick=()=>{act("deal");draw();};
-btn.hit.onclick=()=>{act("hit");draw();};
-btn.stand.onclick=()=>{act("stand");draw();};
-btn.walk.onclick=()=>{walk();draw();};
+function sharedStateFromResponse(payload){
+  const raw=statePayload(payload);
+  if(!raw||typeof raw!=="object"||Array.isArray(raw))throw new Error("invalid state response");
+  return hydrate(raw);
+}
+async function enterShared(){
+  mode=SHARED_MODE; sharedReady=false; sharedLoading=true; sharedBusy=false;
+  const request=++sharedRequest;
+  S=freshState(); S.msg="connecting to shared table…"; updateModeUi(); status("loading shared table…"); draw();
+  if(!configuredWorker()){
+    sharedLoading=false; S.msg="set WORKER_URL to connect to the shared table.";
+    status("shared table is not configured — set WORKER_URL in docs/index.html","error"); draw(); return;
+  }
+  try{
+    const response=await fetch(`${workerUrl()}/state`,{headers:{Accept:"application/json"}});
+    if(!response.ok)throw new Error(`GET /state returned ${response.status}`);
+    const next=sharedStateFromResponse(await response.json());
+    if(mode!==SHARED_MODE||request!==sharedRequest)return;
+    S=next; sharedReady=true; sharedLoading=false; status("shared table · live"); draw();
+  }catch(error){
+    if(mode!==SHARED_MODE||request!==sharedRequest)return;
+    sharedLoading=false; S=freshState(); S.msg="shared table unavailable — try again or use solo.";
+    status(`shared table failed to load: ${error.message}`,"error"); draw();
+  }
+}
+function enterSolo(){
+  ++sharedRequest; mode=SOLO_MODE; sharedReady=false; sharedLoading=false; sharedBusy=false;
+  S=soloState(); prev={player:S.player.length,dealer:S.dealer.length,hide:S.phase==="player"};
+  updateModeUi(); status("solo table · saved in this browser"); draw();
+}
+async function sharedMove(move){
+  if(!sharedReady||sharedLoading||sharedBusy)return;
+  const request=sharedRequest;
+  const before=copyState(S), predicted=copyState(S);
+  S=predicted;
+  if(move==="walk")walk(); else act(move);
+  sharedBusy=true; status(`playing ${move} as @${who()}…`); draw();
+  try{
+    const response=await fetch(`${workerUrl()}/move`,{
+      method:"POST",headers:{"Content-Type":"application/json",Accept:"application/json"},
+      body:JSON.stringify({move,by:who()})
+    });
+    if(!response.ok)throw new Error(`POST /move returned ${response.status}`);
+    const authoritative=sharedStateFromResponse(await response.json());
+    if(mode!==SHARED_MODE||request!==sharedRequest)return;
+    // Deal uses server-side randomness, so its card order cannot be compared.
+    const conflict=move!=="deal"&&comparableState(authoritative)!==comparableState(predicted);
+    S=authoritative;
+    if(conflict){
+      S.msg=`someone else played — ${S.msg}`;
+      status("conflict reconciled — showing the authoritative shared table","conflict");
+    }else status(`shared table · @${who()} played ${move}`);
+    draw();
+  }catch(error){
+    if(mode!==SHARED_MODE||request!==sharedRequest)return;
+    S=before; S.msg="shared move failed — your local prediction was rolled back.";
+    status(`shared move failed: ${error.message}`,"error"); draw();
+  }finally{sharedBusy=false; draw();}
+}
+function soloMove(move){if(move==="walk")walk();else act(move);draw();}
+btn.play.onclick=()=>mode===SHARED_MODE?sharedMove("deal"):soloMove("deal");
+btn.hit.onclick=()=>mode===SHARED_MODE?sharedMove("hit"):soloMove("hit");
+btn.stand.onclick=()=>mode===SHARED_MODE?sharedMove("stand"):soloMove("stand");
+btn.walk.onclick=()=>mode===SHARED_MODE?sharedMove("walk"):soloMove("walk");
+soloMode.onclick=enterSolo;
+sharedMode.onclick=enterShared;
 addEventListener("keydown",e=>{
   if(e.target===pname)return;
   if(e.key==="d"||e.key==="p")btn.play.click();
@@ -330,7 +442,7 @@ addEventListener("keydown",e=>{
   if(e.key==="s"&&!btn.stand.disabled)btn.stand.click();
   if(e.key==="w"&&!btn.walk.disabled)btn.walk.click();
 });
-draw();
+updateModeUi(); status("solo table · saved in this browser"); draw();
 </script>
 </body>
 </html>
