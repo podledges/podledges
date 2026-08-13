@@ -132,7 +132,9 @@ def render(per_repo, repo_meta, today):
     ch_h = 62
     ch_top = 78
     bus_top = ch_top + len(ranked) * ch_h + 14
-    H = bus_top + 20 + 22
+    date_row_h = 16
+    H = bus_top + 18 + date_row_h + 10
+    start = today - timedelta(days=DAYS - 1)
 
     s = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" '
@@ -177,6 +179,24 @@ def render(per_repo, repo_meta, today):
         s.append(
             f'<text x="{pad + (i + 0.5) * seg_w:.1f}" y="{mid + 3.5}" font-size="9" '
             f'text-anchor="middle" fill="{DIM}" fill-opacity="0.85">0x{wv:02X}</text>'
+        )
+
+    # date axis: calendar date at each week boundary, ticked off the bus
+    date_y = bot + date_row_h - 3
+    axis = [f'<path d="M{pad},{bot + 4}H{x_end}"/>']
+    for i in range(13):
+        xt = pad + i * seg_w
+        axis.append(f'<path d="M{xt:.1f},{bot + 2}V{bot + 6}"/>')
+    axis.append(f'<path d="M{x_end},{bot + 2}V{bot + 6}"/>')
+    s.append(
+        f'<g stroke="{DIM}" stroke-opacity="0.3" fill="none" stroke-width="1">{"".join(axis)}</g>'
+    )
+    for i in range(13):
+        d = start + timedelta(days=i * 7)
+        s.append(
+            f'<text x="{pad + i * seg_w:.1f}" y="{date_y}" font-size="8" '
+            f'text-anchor="middle" fill="{DIM}" fill-opacity="0.75" letter-spacing="0.5">'
+            f'{d.month:02d}/{d.day:02d}</text>'
         )
 
     # busiest 7-day window → decode bracket over CH0
