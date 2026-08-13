@@ -79,6 +79,7 @@ TEXT = "#93a7b8"
 BRIGHT = "#e8f1f8"
 BLUE = "#7fd0f5"      # public channels
 PINK = "#ff54a8"      # private channels + accents (neon revolution)
+PINK_LT = "#ff8fc7"   # header title only — lighter, higher-contrast pink
 AMBER = "#f5b043"     # <PRIVATE> labels + decode
 CH_LABEL = "#7b93a8"  # CH0/CH1/… prefixes
 MONO = "ui-monospace,'JetBrains Mono','Cascadia Code',Consolas,monospace"
@@ -142,10 +143,10 @@ def render(per_repo, repo_meta, today):
         f'<rect width="{W}" height="{H}" rx="10" fill="{BG}" stroke="{BORDER}"/>',
         # header
         f'<text x="{pad}" y="30" font-size="12" letter-spacing="3" font-weight="bold">'
-        f'<tspan fill="{PINK}">COMMIT</tspan>'
+        f'<tspan fill="{PINK_LT}">COMMIT</tspan>'
         f'<tspan fill="{GREEN_MAX}"> ANALYZER</tspan>'
         f'<tspan fill="{BRIGHT}"> — </tspan>'
-        f'<tspan fill="{PINK}">RECENT REPOSITORIES</tspan></text>',
+        f'<tspan fill="{PINK_LT}">RECENT REPOSITORIES</tspan></text>',
         f'<text x="{W - pad}" y="30" font-size="10" text-anchor="end" fill="{BRIGHT}" '
         f'letter-spacing="1">{total} COMMITS · {len(active)} REPOS · {n_priv} PRIVATE · 13-WEEK WINDOW</text>',
         f'<line x1="{pad}" y1="44" x2="{W - pad}" y2="44" stroke="{BORDER}"/>',
@@ -178,7 +179,7 @@ def render(per_repo, repo_meta, today):
     for i, wv in enumerate(weeks):
         s.append(
             f'<text x="{pad + (i + 0.5) * seg_w:.1f}" y="{mid + 3.5}" font-size="9" '
-            f'text-anchor="middle" fill="{DIM}" fill-opacity="0.85">0x{wv:02X}</text>'
+            f'text-anchor="middle" fill="{TEXT}">0x{wv:02X}</text>'
         )
 
     # date axis: calendar date at each week boundary, ticked off the bus
@@ -195,7 +196,7 @@ def render(per_repo, repo_meta, today):
         d = start + timedelta(days=i * 7)
         s.append(
             f'<text x="{pad + i * seg_w:.1f}" y="{date_y}" font-size="8" '
-            f'text-anchor="middle" fill="{DIM}" fill-opacity="0.75" letter-spacing="0.5">'
+            f'text-anchor="middle" fill="{TEXT}" letter-spacing="0.5">'
             f'{d.month:02d}/{d.day:02d}</text>'
         )
 
