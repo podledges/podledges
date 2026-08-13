@@ -1,0 +1,39 @@
+name: waveform
+
+on:
+  schedule:
+    - cron: "17 */8 * * *" # every 8 hours
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: waveform
+  cancel-in-progress: true
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: render waveform
+        env:
+          # WAVEFORM_TOKEN must be a PAT with repo scope so private
+          # repos make it into the mix. Falls back to the default token
+          # (public repos only) if the secret isn't set.
+          GH_TOKEN: ${{ secrets.WAVEFORM_TOKEN || github.token }}
+        run: python3 scripts/waveform.py
+
+      - name: commit
+        run: |
+          git config user.name "waveform[bot]"
+          git config user.email "actions@github.com"
+          git add assets/waveform.svg
+          git diff --cached --quiet && exit 0
+          git commit -m "🎚 re-render waveform [skip ci]"
+          git pull --rebase origin main
+          git push
