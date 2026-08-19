@@ -21,7 +21,7 @@
     <rect x="128" y="68" width="285" height="8" rx="4" fill="url(#bar)" filter="url(#glow-cyan)"/>
     <g transform="translate(22 96)">
       <text x="0" y="106" fill="url(#number)" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="118" font-weight="800" letter-spacing="-10">47</text>
-      <text x="0" y="135" fill="#e8f4ff" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="17" font-weight="700">day record commit streak</text>
+      <text x="0" y="135" fill="#e8f4ff" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="17" font-weight="700">day record streak</text>
       <text x="0" y="157" fill="#8ea0b8" font-size="11">podle core stable · reactor online</text>
     </g>
     <g transform="translate(440 60)">
