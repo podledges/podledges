@@ -1,4 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="860" height="390" viewBox="0 0 860 390" role="img" aria-labelledby="title desc">
+  <!--
+    Hand-maintained, unlike assets/waveform.svg and assets/blackjack.svg, which their
+    scripts/*.py generators re-render. Edit the numbers and copy here directly.
+    GitHub proxies README images as standalone files, so this must stay self-contained:
+    presentation inline or in <defs>, no external CSS, JS, fonts, or hrefs.
+  -->
   <title id="title">Podle Reactor Core Bay</title>
   <desc id="desc">A neon console showing a 47-day record commit streak beside an empty Podle Bay module, with a seven-day activity footer.</desc>
   <defs>
