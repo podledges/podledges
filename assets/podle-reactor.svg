@@ -40,8 +40,8 @@
     <line x1="22" y1="298" x2="838" y2="298" stroke="#88d6ff" stroke-opacity=".14"/>
     <text x="22" y="321" fill="#8ea0b8" font-size="10" font-weight="700" letter-spacing="2">PODLE WEEK</text>
     <g transform="translate(22 338)" font-size="10" font-weight="700" text-anchor="middle">
-      <g fill="#2ee9ff"><rect x="0" y="-8" width="54" height="8" rx="2"/><rect x="127" y="-12" width="54" height="12" rx="2"/><rect x="254" y="-17" width="54" height="17" rx="2"/><rect x="381" y="-24" width="54" height="24" rx="2"/><rect x="508" y="-17" width="54" height="17" rx="2"/><rect x="635" y="-11" width="54" height="11" rx="2"/><rect x="762" y="-7" width="54" height="7" rx="2"/></g>
-      <g fill="#e8f4ff"><text x="27" y="21">S</text><text x="154" y="21">M</text><text x="281" y="21">T</text><text x="408" y="21">W</text><text x="535" y="21">T</text><text x="662" y="21">F</text><text x="789" y="21">S</text></g>
+      <g fill="#2ee9ff"><rect x="0" y="-8" width="90" height="8" rx="2"/><rect x="121" y="-12" width="90" height="12" rx="2"/><rect x="242" y="-17" width="90" height="17" rx="2"/><rect x="363" y="-24" width="90" height="24" rx="2"/><rect x="484" y="-17" width="90" height="17" rx="2"/><rect x="605" y="-11" width="90" height="11" rx="2"/><rect x="726" y="-7" width="90" height="7" rx="2"/></g>
+      <g fill="#e8f4ff"><text x="45" y="21">S</text><text x="166" y="21">M</text><text x="287" y="21">T</text><text x="408" y="21">W</text><text x="529" y="21">T</text><text x="650" y="21">F</text><text x="771" y="21">S</text></g>
     </g>
   </g>
 </svg>
