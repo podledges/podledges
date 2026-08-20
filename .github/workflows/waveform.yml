@@ -1,15 +1,15 @@
-name: waveform
+name: profile-assets
 
 on:
   schedule:
-    - cron: "17 */8 * * *" # every 8 hours
+    - cron: "17 */8 * * *" # Refresh three times per day.
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: waveform
+  group: profile-assets-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -17,23 +17,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: main
 
-      - name: render waveform
+      - name: Validate generator
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Require private-repository activity token
         env:
-          # WAVEFORM_TOKEN must be a PAT with repo scope so private
-          # repos make it into the mix. Falls back to the default token
-          # (public repos only) if the secret isn't set.
-          GH_TOKEN: ${{ secrets.WAVEFORM_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.WAVEFORM_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::WAVEFORM_TOKEN is required for an accurate all-repository commit streak. Configure a token with read access to every owned repository."
+            exit 1
+          fi
+
+      - name: Render current profile assets
+        env:
+          GH_TOKEN: ${{ secrets.WAVEFORM_TOKEN }}
+          GH_USER: podledges
         run: python3 scripts/waveform.py
 
-      - name: commit
+      - name: Commit refreshed assets
         run: |
-          git config user.name "waveform[bot]"
+          git config user.name "profile-assets[bot]"
           git config user.email "actions@github.com"
-          git add assets/waveform.svg
+          git add assets/podle-reactor.svg assets/waveform.svg
           git diff --cached --quiet && exit 0
-          git commit -m "🎚 re-render waveform [skip ci]"
-          git pull --rebase origin main
-          git push
+          git commit -m "🎚 refresh profile activity [skip ci]"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"
