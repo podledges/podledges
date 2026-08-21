@@ -2,7 +2,7 @@
 
 This file is the project's committed home for project-intrinsic agent knowledge: build, test, release, architecture, and sharp-edge notes that should travel with the code.
 
-- Profile visuals in `assets/podle-reactor.svg` and `assets/waveform.svg` are generated. See `docs/profile-assets.md`; validate changes with `python3 -m unittest discover -s tests -v`.
+- Profile visuals in `assets/*.svg` and the interactive `docs/reactor.html` are generated. For profile data, motion, or interaction changes, read `docs/profile-assets.md` and run `python3 -m unittest discover -s tests -v`.
 
 ## Maintaining this file
 

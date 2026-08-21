@@ -1,4 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="860" height="446" viewBox="0 0 860 446" role="img" aria-labelledby="wave-title wave-desc" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" data-generated-date="2026-08-21">
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Interactive Podle Reactor</title>
+  <style>
+    :root{--cyan:#2ee9ff;--pink:#ff2ec8;--lime:#ccff5e;--amber:#ffb347;--text:#e8f4ff;--muted:#9bb0c6}
+    *{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at 18% 8%,#2ee9ff33,transparent 28rem),radial-gradient(circle at 82% 4%,#ff2ec833,transparent 25rem),linear-gradient(135deg,#04050a,#07111b 48%,#17091e);color:var(--text);font-family:Inter,system-ui,sans-serif}
+    main{width:min(920px,calc(100vw - 24px));margin:auto;padding:24px 0 48px} .kicker{color:var(--cyan);font:800 11px ui-monospace,monospace;letter-spacing:2.8px} h1{margin:8px 0 20px;font-size:clamp(28px,5vw,50px)}
+    .reactor,.wave-card{border-radius:16px;background:linear-gradient(135deg,#07080d,#0a111a 54%,#14091a);border:1px solid #2ee9ff2e;box-shadow:0 18px 40px #0008;padding:18px;transition:transform .18s,box-shadow .18s} .wave-card{margin-top:16px;border-color:#ccff5e38;padding:0;overflow:hidden} .wave-card:hover{transform:translateY(-2px);box-shadow:0 0 42px #ccff5e2e,0 18px 40px #0008}
+    .top{height:34px;border-bottom:1px solid #88d6ff29;font:800 11px ui-monospace,monospace;letter-spacing:2.8px;display:flex;align-items:center;gap:14px} .dot{width:10px;height:10px;border-radius:50%;background:var(--pink);box-shadow:0 0 18px var(--pink)}
+    .grid{display:grid;grid-template-columns:minmax(0,1fr) 232px;gap:24px;padding-top:20px} .panel{min-height:360px;border-radius:14px;transition:transform .18s,box-shadow .18s} .streak{padding:18px 20px;background:#080c13;border:1px solid #2ee9ff3d} .streak:hover{transform:translateY(-2px);box-shadow:0 0 36px #2ee9ff38} .bay{padding:18px;background:repeating-linear-gradient(135deg,#171018 0 11px,#2c1d12 11px 22px);border:1px dashed #ffb347a6;color:#ffd6a0} .bay:hover{transform:translateY(-2px);box-shadow:0 0 36px #ff2ec838}
+    .rail{display:inline-block;width:min(300px,58%);height:9px;margin-left:20px;border-radius:99px;background:linear-gradient(90deg,var(--cyan),var(--pink),#fff4d8,var(--cyan));background-size:260% 100%;box-shadow:0 0 18px var(--cyan);animation:rail 4.8s ease-in-out infinite alternate} @keyframes rail{to{background-position:100%}} .num{margin:38px 0 0;font-size:88px;font-weight:850;letter-spacing:-8px;background:linear-gradient(90deg,#fff,var(--cyan),var(--pink),#fff,var(--lime));background-size:220%;-webkit-background-clip:text;color:transparent;animation:num 2.4s ease-in-out infinite} @keyframes num{50%{background-position:100%;filter:drop-shadow(0 0 24px #ff2ec8)}}
+    .week{margin-top:28px;padding-top:12px;border-top:1px solid #88d6ff24} .bars{height:88px;display:grid;grid-template-columns:repeat(7,1fr);gap:14px;align-items:end} .day{position:relative;display:flex;flex-direction:column;align-items:center;gap:7px;font:800 11px ui-monospace,monospace} .day span{width:100%;max-width:48px;border-radius:4px;background:var(--cyan);box-shadow:0 0 18px #2ee9ffcc;transform-origin:bottom;transition:.16s} .day:before{content:attr(data-commits) ' commits';position:absolute;bottom:100%;opacity:0;transform:translateY(6px);padding:5px 8px;border-radius:999px;background:linear-gradient(90deg,var(--cyan),var(--pink));white-space:nowrap;transition:.16s;z-index:2} .day:hover:before{opacity:1;transform:none} .day:hover span{transform:scaleY(1.14);background:var(--pink);box-shadow:0 0 24px #ff2ec8e6}
+    .bay h2{margin:42px 0 20px;font:800 24px ui-monospace,monospace;letter-spacing:3px;color:var(--amber)} .source{color:var(--muted);font:12px ui-monospace,monospace;margin:14px 2px} .wave-card svg{display:block;width:100%;height:auto}
+    @media(max-width:700px){.grid{grid-template-columns:1fr}.rail{display:block;margin:14px 0;width:80%}.num{font-size:68px}}
+  </style>
+</head>
+<body><main data-generated-date="2026-08-21">
+  <div class="kicker">INTERACTIVE PROFILE LAB</div><h1>Podle Reactor</h1>
+  <section class="reactor" aria-label="Interactive PodleStreak and Podle Bay">
+    <div class="top"><span class="dot"></span>PODLEHUB</div>
+    <div class="grid">
+      <section class="panel streak"><div class="kicker">PODLESTREAK <span class="rail"></span></div><div class="num">34 DAYS</div><h2>consecutive daily contribution streak</h2><div class="source">GitHub contribution calendar, including private activity</div><div class="week"><div class="kicker">PODLEWEEK · 62 COMMITS</div><div class="bars"><div class="day" data-commits="28"><span style="height:70px"></span><b>Sat</b></div><div class="day" data-commits="2"><span style="height:16.14px"></span><b>Sun</b></div><div class="day" data-commits="12"><span style="height:36.86px"></span><b>Mon</b></div><div class="day" data-commits="8"><span style="height:28.57px"></span><b>Tue</b></div><div class="day" data-commits="8"><span style="height:28.57px"></span><b>Wed</b></div><div class="day" data-commits="2"><span style="height:16.14px"></span><b>Thu</b></div><div class="day" data-commits="2"><span style="height:16.14px"></span><b>Fri</b></div></div></div></section>
+      <aside class="panel bay"><div class="kicker">PODLE BAY</div><h2>HELD OPEN</h2><div>Separate selectable panel.</div><div class="source">Future module docks here.</div></aside>
+    </div>
+  </section>
+  <section id="waveform" class="wave-card" aria-label="Interactive commit waveform"><svg xmlns="http://www.w3.org/2000/svg" width="860" height="446" viewBox="0 0 860 446" role="img" aria-labelledby="wave-title wave-desc" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" data-generated-date="2026-08-21">
   <title id="wave-title">Commit waveform</title>
   <desc id="wave-desc">Animated neon timing diagram of 588 authored commits from 5 recent repository channels over eight weeks, including masked private repositories. The busiest seven-day period, Jul 27 to Aug 02, contains 143 commits.</desc>
   <defs>
@@ -101,3 +129,6 @@
   <text x="838" y="426" text-anchor="middle" fill="#7890a4" font-size="8">08/21</text>
   <g data-role="cursor" aria-hidden="true"><line x1="0" y1="72" x2="0" y2="397" stroke="#e8f4ff" stroke-opacity=".8" stroke-width="1.5" stroke-dasharray="4 5" filter="url(#wave-glow)"/><circle cx="0" cy="72" r="3" fill="#e8f4ff"/><circle cx="0" cy="397" r="3" fill="#e8f4ff"/><animateTransform attributeName="transform" type="translate" from="170 0" to="838 0" dur="2.8s" repeatCount="indefinite"/></g>
 </svg>
+</section>
+  <p class="source">Generated 2026-08-21 from GitHub contribution-calendar streak data and complete private-inclusive default/gh-pages branch commit data.</p>
+</main></body></html>

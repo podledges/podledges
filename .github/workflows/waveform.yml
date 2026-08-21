@@ -26,7 +26,7 @@ jobs:
           GH_TOKEN: ${{ secrets.WAVEFORM_TOKEN }}
         run: |
           if [ -z "$GH_TOKEN" ]; then
-            echo "::error::WAVEFORM_TOKEN is required for an accurate all-repository commit streak. Configure a token with read access to every owned repository."
+            echo "::error::WAVEFORM_TOKEN is required for accurate private-inclusive GitHub contribution statistics. Configure a token owned by podledges with GraphQL and private-repository access."
             exit 1
           fi
 
@@ -40,7 +40,7 @@ jobs:
         run: |
           git config user.name "profile-assets[bot]"
           git config user.email "actions@github.com"
-          git add assets/podle-reactor.svg assets/waveform.svg
+          git add assets/podle-reactor.svg assets/waveform.svg docs/reactor.html
           git diff --cached --quiet && exit 0
           git commit -m "🎚 refresh profile activity [skip ci]"
           git pull --rebase origin "$GITHUB_REF_NAME"
