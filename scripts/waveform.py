@@ -564,7 +564,7 @@ def render_pages(activity: dict[str, Any], today: date) -> str:
   <section class="reactor" aria-label="Interactive PodleStreak and Podle Bay">
     <div class="top"><span class="dot"></span>PODLEHUB</div>
     <div class="grid">
-      <section class="panel streak"><div class="kicker">PODLESTREAK <span class="rail"></span></div><div class="num">{streak} DAYS</div><h2>consecutive daily contribution streak</h2><div class="source">GitHub contribution calendar, including private activity</div><div class="week"><div class="kicker">PODLEWEEK · {sum(week_counts)} COMMITS</div><div class="bars">{''.join(days)}</div></div></section>
+      <section class="panel streak"><div class="kicker">PODLESTREAK <span class="rail"></span></div><div class="num">{streak} DAYS</div><h2>consecutive daily contribution streak</h2><div class="source">GitHub contribution calendar</div><div class="week"><div class="kicker">PODLEWEEK · {sum(week_counts)} COMMITS</div><div class="bars">{''.join(days)}</div></div></section>
       <aside class="panel bay"><div class="kicker">PODLE BAY</div><h2>HELD OPEN</h2><div>Separate selectable panel.</div><div class="source">Future module docks here.</div></aside>
     </div>
   </section>
