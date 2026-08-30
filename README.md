@@ -8,4 +8,6 @@
 
 <sub>The Hardline Signal Deck is the profile panel. Click either supporting panel for the full pointer-interactive version.</sub>
 
+<sub><strong>PodleISC</strong> is a private mind lab for probability, personality, idea surfacing, tool chaining, Bot Trust, and future frequency governance.</sub>
+
 </div>
