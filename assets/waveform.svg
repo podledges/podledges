@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="860" height="446" viewBox="0 0 860 446" role="img" aria-labelledby="wave-title wave-desc" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" data-generated-date="2026-08-30">
   <title id="wave-title">Commit waveform</title>
-  <desc id="wave-desc">Animated neon timing diagram of 727 authored commits from 5 recent repository channels over eight weeks, including masked private repositories. The busiest seven-day period, Aug 18 to Aug 24, contains 166 commits.</desc>
+  <desc id="wave-desc">Animated neon timing diagram of 729 authored commits from 5 recent repository channels over eight weeks, including masked private repositories. The busiest seven-day period, Aug 18 to Aug 24, contains 166 commits.</desc>
   <defs>
     <linearGradient id="wave-bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#05060a"><animate attributeName="stop-color" values="#05060a;#071421;#05060a" dur="7s" repeatCount="indefinite"/></stop><stop offset=".58" stop-color="#09111b"/><stop offset="1" stop-color="#15091d"><animate attributeName="stop-color" values="#15091d;#210b2b;#15091d" dur="7s" repeatCount="indefinite"/></stop></linearGradient>
     <linearGradient id="wave-cursor-burst" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#2ee9ff" stop-opacity="0"/><stop offset=".5" stop-color="#ff2ec8" stop-opacity=".28"/><stop offset="1" stop-color="#ccff5e" stop-opacity="0"/></linearGradient>
@@ -16,7 +16,7 @@
   <rect class="wave-surface" data-role="outer-frame" x="1" y="1" width="858" height="444" rx="15" fill="url(#wave-bg)" stroke="#ccff5e" stroke-opacity=".28"><animate attributeName="stroke-opacity" values=".22;.5;.22" dur="4.6s" repeatCount="indefinite"/></rect>
   <circle cx="27" cy="27" r="5" fill="url(#wave-dot)" filter="url(#wave-dot-glow)"><animate attributeName="r" values="4;6.5;4" dur="2s" repeatCount="indefinite"/></circle>
   <text x="43" y="31" font-size="12" font-weight="800" letter-spacing="3"><tspan fill="#e8f4ff">PODLEHUB</tspan><tspan fill="#ccff5e">  /  COMMIT WAVEFORM</tspan></text>
-  <text x="838" y="31" text-anchor="end" fill="#a9bfd0" font-size="10" letter-spacing="1">727 COMMITS · 24 ACTIVE REPOS · 15 PRIVATE · 8-WEEK WINDOW</text>
+  <text x="838" y="31" text-anchor="end" fill="#a9bfd0" font-size="10" letter-spacing="1">729 COMMITS · 24 ACTIVE REPOS · 15 PRIVATE · 8-WEEK WINDOW</text>
   <line x1="22" y1="48" x2="838" y2="48" stroke="#88d6ff" stroke-opacity=".18"/>
   <rect data-role="highlight-window" x="682.93" y="68" width="83.5" height="317" fill="url(#wave-highlight)" fill-opacity=".12" stroke="url(#wave-highlight)" stroke-opacity=".55" stroke-dasharray="4 7"><animate attributeName="fill-opacity" values=".08;.24;.08" dur="1.6s" repeatCount="indefinite"/><animate attributeName="stroke-dashoffset" values="0;-22" dur="1.6s" repeatCount="indefinite"/></rect>
   <line x1="682.93" y1="68" x2="682.93" y2="385" stroke="#ffb347" stroke-opacity=".55" stroke-dasharray="3 4"/>
