@@ -199,6 +199,36 @@ class ProfileGeneratorTests(unittest.TestCase):
         self.assertIn("https://podledges.github.io/podledges/reactor.html", readme)
         self.assertIn("https://podledges.github.io/podledges/reactor.html#waveform", readme)
 
+    def test_written_assets_refresh_streak_and_commit_data(self) -> None:
+        first_activity = fixture(self.today)
+        second_today = self.today + timedelta(days=1)
+        second_activity = fixture(second_today)
+        second_activity["repositories"][0]["commits"].append(commit(second_today, 999))
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            waveform.write_assets(first_activity, output)
+            first_reactor = ET.parse(output / "podle-reactor.svg").getroot()
+            first_waveform = ET.parse(output / "waveform.svg").getroot()
+
+            waveform.write_assets(second_activity, output)
+            second_reactor = ET.parse(output / "podle-reactor.svg").getroot()
+            second_waveform = ET.parse(output / "waveform.svg").getroot()
+
+        first_streak = first_reactor.find("svg:desc", SVG).text
+        second_streak = second_reactor.find("svg:desc", SVG).text
+        first_commits = first_waveform.find("svg:desc", SVG).text
+        second_commits = second_waveform.find("svg:desc", SVG).text
+
+        self.assertEqual(first_reactor.attrib["data-generated-date"], "2026-08-21")
+        self.assertEqual(second_reactor.attrib["data-generated-date"], "2026-08-22")
+        self.assertIn("current streak of 34 consecutive GitHub contribution days", first_streak)
+        self.assertIn("current streak of 35 consecutive GitHub contribution days", second_streak)
+        self.assertIn("of 32 authored commits", first_commits)
+        self.assertIn("of 33 authored commits", second_commits)
+        self.assertNotEqual(first_streak, second_streak)
+        self.assertNotEqual(first_commits, second_commits)
+
     def test_committed_generated_files_are_valid_and_accessible(self) -> None:
         reactor = ET.parse(ROOT / "assets" / "podle-reactor.svg").getroot()
         rendered_waveform = ET.parse(ROOT / "assets" / "waveform.svg").getroot()
