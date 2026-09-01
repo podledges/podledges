@@ -64,4 +64,4 @@ Glow filters have explicit user-space regions. Waveform signals, hot segments, g
 python3 -m unittest discover -s tests -v
 ```
 
-The suite verifies contribution-style streak semantics and August 9, complete REST pagination, UTC+08:00 window boundaries, private masking, computed totals/highlights, SVG-native autoplay, Pages interaction hooks, accessibility metadata, filter clipping room, and exact chart alignment.
+The suite verifies contribution-style streak semantics and August 9, complete REST pagination, UTC+08:00 window boundaries, private masking, computed totals/highlights, SVG-native autoplay, Pages interaction hooks, accessibility metadata, filter clipping room, exact chart alignment, and that successive asset writes replace streak and commit data.
