@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="188" viewBox="0 0 860 188" role="img" aria-labelledby="title desc">
+  <title id="title">PodleHub Hardline wordmark</title>
+  <desc id="desc">A stark black, white, and orange PodleHub wordmark panel.</desc>
+  <defs>
+    <linearGradient id="signal" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#2ee9ff"/>
+      <stop offset=".55" stop-color="#ff2ec8"/>
+      <stop offset="1" stop-color="#ccff5e"/>
+    </linearGradient>
+    <style>
+      :root{color-scheme:dark}
+      text{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+      .scan{animation:scan 4.2s linear infinite}
+      .blink{animation:blink 1.1s steps(1) infinite}
+      @keyframes scan{from{transform:translateX(-210px) skewX(-16deg)}to{transform:translateX(1080px) skewX(-16deg)}}
+      @keyframes blink{50%{opacity:.2}}
+      @media (prefers-reduced-motion:reduce){.scan,.blink{animation:none!important}}
+    </style>
+  </defs>
+  <rect width="860" height="188" fill="#050505"/>
+  <rect x="1" y="1" width="858" height="186" fill="none" stroke="#ffffff" stroke-opacity=".4"/>
+  <rect width="14" height="188" fill="#ff5a1f"/>
+  <path d="M38 34H822M38 154H822" stroke="#ffffff" stroke-opacity=".28"/>
+  <text x="42" y="28" fill="#ffffff" font-size="10" font-weight="800" letter-spacing="3">PODLEHUB</text>
+  <text x="818" y="28" text-anchor="end" fill="#ff5a1f" font-size="10" font-weight="800" letter-spacing="2">OPEN LIVE ↗</text>
+  <text x="42" y="127" fill="#ffffff" font-family="Arial Black,Impact,sans-serif" font-size="78" font-weight="900" letter-spacing="-5">PODLE</text>
+  <rect x="524" y="58" width="294" height="84" fill="#ff5a1f"/>
+  <text x="671" y="127" text-anchor="middle" fill="#050505" font-family="Arial Black,Impact,sans-serif" font-size="78" font-weight="900" letter-spacing="-5">HUB</text>
+  <rect class="scan" x="-180" y="38" width="150" height="112" fill="url(#signal)" opacity=".12"/>
+  <rect class="blink" x="810" y="162" width="8" height="8" fill="#ffffff"/>
+</svg>

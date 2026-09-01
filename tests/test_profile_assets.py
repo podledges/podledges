@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 import tempfile
 import unittest
@@ -198,6 +199,37 @@ class ProfileGeneratorTests(unittest.TestCase):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("https://podledges.github.io/podledges/reactor.html", readme)
         self.assertIn("https://podledges.github.io/podledges/reactor.html#waveform", readme)
+
+    def test_profile_has_one_live_streak_and_one_live_commit_panel(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        sources = re.findall(r'<img src="([^"]+\.svg)"', readme)
+        self.assertEqual(
+            sources,
+            [
+                "assets/podle-reactor.svg",
+                "assets/codex-hardline-podlehub.svg",
+                "assets/waveform.svg",
+            ],
+        )
+        panels = {
+            source: (ROOT / source).read_text(encoding="utf-8") for source in sources
+        }
+        streak_panels = [source for source, panel in panels.items() if "PODLESTREAK" in panel]
+        commit_panels = [
+            source
+            for source, panel in panels.items()
+            if "COMMIT ANALYZER" in panel or "COMMIT WAVEFORM" in panel
+        ]
+        self.assertEqual(streak_panels, ["assets/podle-reactor.svg"])
+        self.assertEqual(commit_panels, ["assets/waveform.svg"])
+        for source in streak_panels + commit_panels:
+            self.assertIn("data-generated-date=", panels[source])
+
+        workflow = (ROOT / ".github" / "workflows" / "waveform.yml").read_text(
+            encoding="utf-8"
+        )
+        for source in streak_panels + commit_panels:
+            self.assertIn(source, workflow)
 
     def test_committed_generated_files_are_valid_and_accessible(self) -> None:
         reactor = ET.parse(ROOT / "assets" / "podle-reactor.svg").getroot()
