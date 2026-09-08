@@ -34,17 +34,17 @@ Run a calendar refresh locally with an equivalent token (the existing waveform m
 GH_TOKEN=... python3 scripts/waveform.py --contributions-only
 ```
 
-`GH_TOKEN=... python3 scripts/waveform.py` still performs the full calendar + REST capture and refuses inconsistent commit totals. Neither command substitutes public-only statistics. Local fleet operation uses `gh-axi` as the authenticated API transport; no credential belongs in a fixture or commit.
+`GH_TOKEN=... python3 scripts/waveform.py` still performs the full calendar + REST capture and refuses inconsistent commit totals. Neither command substitutes public-only statistics. The generator calls GitHub's APIs directly using Python's standard library; no credential belongs in a fixture or commit.
 
 The 2026-09-08 production implementation found an empty-repository HTTP 409 stopping REST refresh. Only the exact `Git Repository is empty.` response is treated as zero commits; other conflicts, permission errors and missing repositories still fail. After that correction, REST/GraphQL still differed (205/206), so the accepted waveform bytes were intentionally preserved. Calendar-only refresh does not reinterpret or bypass the waveform check.
 
-Contribution dates follow the GitHub calendar's current UTC date, separately from the waveform's Singapore-day buckets. Missing dates, negative/duplicate counts and a streak reaching the history boundary are rejected rather than silently inventing zeros or an exact lifetime length. Retrieval time labels the successful source capture, not an assurance that subsequent scheduled runs succeeded.
+Contribution dates follow the GitHub calendar's current UTC date, separately from the waveform's Singapore-day buckets. Missing dates, negative/duplicate counts and a streak reaching the history boundary are rejected rather than silently inventing zeros or an exact lifetime length. `retrieved_at` records the UTC time at the GraphQL request, before REST enumeration, and is retained through a full capture. Calendar normalization and retrieval labels use that timestamp even if the REST crawl crosses UTC midnight; see `test_full_capture_keeps_calendar_request_time_when_rest_crosses_utc_midnight` in `tests/test_prism_orbit.py`. It labels the successful calendar source capture, not completion of the REST crawl or an assurance that subsequent scheduled runs succeeded.
 
 ## Why the Hardline panel stopped updating
 
 PR #10 added a captured Hardline Signal Deck containing literal `37 DAYS` and `717 COMMITS` values. Scheduled workflow runs continued to succeed, but the generator and workflow commit paths intentionally covered only `podle-reactor.svg`, `waveform.svg`, and the Pages clone. The generated panels below the deck made the refresh system look healthy while the primary duplicate stayed unchanged.
 
-The profile now retains the generated PodleStreak/PodleFortnite pair and commit waveform as its only data-bearing panels. The Hardline artwork is limited to a data-free PodleHub wordmark between them, so successful scheduled generation reaches every displayed statistic.
+The current generated-asset ownership is defined above; the independent publication paths and partial-failure behavior are described in [Token and freshness](#token-and-freshness).
 
 ## Why PR #7 displayed 11 days
 
@@ -74,4 +74,4 @@ Glow filters have explicit user-space regions. Waveform signals, hot segments, g
 python3 -m unittest discover -s tests -v
 ```
 
-The suite executes the generator and API consumer to verify contribution streak semantics/August 9, complete REST pagination, precise empty-repository handling, separate calendar/UTC+08:00 boundaries, private masking, exact native output/data, independent numeral/chart ownership, future peaks, font outline output, self-contained Pages image identity, accessibility metadata, waveform bounds and refresh/rejection behavior. `profile-tests.yml` runs it on PRs without live API credentials. Native image motion, actual reduced-motion preference, light/dark contrast and hosted GitHub image delivery also require browser acceptance; source text alone cannot prove animation.
+The suite executes the generator and API consumer to verify contribution streak semantics/August 9, complete REST pagination, precise empty-repository handling, separate calendar/UTC+08:00 boundaries, private masking, exact native output/data, independent numeral/chart ownership, future peaks, font outline output, self-contained Pages image identity, accessibility metadata, waveform bounds and refresh/rejection behavior. `profile-tests.yml` runs it on PRs without live API credentials. Native image motion, actual reduced-motion preference, light/dark contrast and hosted GitHub image delivery also require browser acceptance with delayed image frames/screenshots; source text or hiding an SMIL node alone cannot prove the painted result is stationary.

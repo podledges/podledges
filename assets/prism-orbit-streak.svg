@@ -146,7 +146,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.</metadata>
   <polygon points="0,-6 4.8,0 0,0" fill="#c084ff"/>
   <polygon points="0,0 0,6 -4.8,0" fill="#7ee8ff"/>
 </g>
-<style>/* Native SVG animation only. Included verbatim by build_candidate.py. */
+<style>/* Native SVG animation only. Included verbatim by scripts/prism_orbit.py. */
 .drift-a{animation:drift-a 31s ease-in-out infinite}
 .drift-b{animation:drift-b 43s ease-in-out infinite}
 @keyframes drift-a{0%,100%{transform:translate(0,0)}13%{transform:translate(17px,-11px)}29%{transform:translate(-8px,-19px)}44%{transform:translate(21px,6px)}61%{transform:translate(5px,16px)}78%{transform:translate(-19px,3px)}91%{transform:translate(-9px,-8px)}}

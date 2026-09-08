@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the profile's PodleStreak and commit waveform SVGs.
+"""Generate the profile's Prism Orbit panels, commit waveform and webpage.
 
 The streak follows GitHub's GraphQL contribution calendar. The waveform follows
 complete authored commits on each owned repository's default and gh-pages
