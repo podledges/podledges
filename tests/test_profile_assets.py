@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import importlib.util
-import sys
+import base64
+from html.parser import HTMLParser
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
@@ -9,11 +9,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location("waveform", ROOT / "scripts" / "waveform.py")
-assert SPEC and SPEC.loader
-waveform = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = waveform
-SPEC.loader.exec_module(waveform)
+from scripts import waveform
 
 SVG = {"svg": "http://www.w3.org/2000/svg"}
 
@@ -38,7 +34,7 @@ def fixture(today: date) -> dict:
             commit(day, 100 + offset * 10 + index) for index in range(offset)
         )
 
-    contribution_days = [
+    contribution_days = [{"date": "2026-07-18", "count": 0}] + [
         {
             "date": (streak_start + timedelta(days=offset)).isoformat(),
             "count": 1,
@@ -78,7 +74,8 @@ class ProfileGeneratorTests(unittest.TestCase):
             0,
         )
         self.assertEqual(waveform.contribution_streak(self.activity, self.today), 34)
-        self.assertIn("34 DAYS", waveform.render_reactor(self.activity, self.today))
+        reactor = ET.fromstring(waveform.render_reactor(self.activity, self.today))
+        self.assertEqual(reactor.find(".//svg:g[@id='streak-number']", SVG).attrib['data-value'], '34')
 
     def test_contribution_streak_uses_latest_complete_day(self) -> None:
         activity = fixture(self.today)
@@ -133,9 +130,10 @@ class ProfileGeneratorTests(unittest.TestCase):
                 )
             )
 
-        reactor_animations = reactor.findall(".//svg:animate", SVG)
+        orbit = reactor.find(".//svg:g[@data-role='orbit-object']/svg:animateMotion", SVG)
+        self.assertIsNotNone(orbit)
+        self.assertEqual(orbit.attrib['dur'], '10.5s')
         waveform_animations = rendered_waveform.findall(".//svg:animate", SVG)
-        self.assertGreaterEqual(len(reactor_animations), 20)
         self.assertGreaterEqual(len(waveform_animations), 18)
         self.assertEqual(
             len(rendered_waveform.findall(".//svg:path[@data-role='hotseg']", SVG)),
@@ -145,12 +143,8 @@ class ProfileGeneratorTests(unittest.TestCase):
             rendered_waveform.find(".//svg:rect[@data-role='cursor-burst']", SVG)
         )
         self.assertEqual(
-            len(reactor.findall(".//svg:rect[@data-role='day-bar']", SVG)),
-            7,
-        )
-        self.assertEqual(
-            len(reactor.findall(".//svg:g[@data-role='week-popup']", SVG)),
-            7,
+            len(reactor.findall(".//svg:rect[@data-role='bar-measure']", SVG)),
+            14,
         )
         cursor = rendered_waveform.find(".//svg:g[@data-role='cursor']/svg:animateTransform", SVG)
         self.assertIsNotNone(cursor)
@@ -159,9 +153,10 @@ class ProfileGeneratorTests(unittest.TestCase):
 
     def test_reactor_frame_and_glows_have_clipping_room(self) -> None:
         root = ET.fromstring(waveform.render_reactor(self.activity, self.today))
-        frame = root.find("svg:rect[@data-role='outer-frame']", SVG)
+        self.assertEqual(root.attrib['viewBox'], '0 0 533.2 588')
+        frame = root.find(".//svg:clipPath[@id='panel-clip']/svg:use", SVG)
         self.assertIsNotNone(frame)
-        self.assertEqual((frame.attrib["x"], frame.attrib["y"]), ("1", "1"))
+        self.assertEqual(frame.attrib['href'], '#panel-shape')
         for filter_element in root.findall(".//svg:filter", SVG):
             self.assertEqual(filter_element.attrib["filterUnits"], "userSpaceOnUse")
             self.assertTrue({"x", "y", "width", "height"}.issubset(filter_element.attrib))
@@ -184,15 +179,26 @@ class ProfileGeneratorTests(unittest.TestCase):
         expected_x = 170 + highlight_index * ((838 - 170) / waveform.WAVEFORM_DAYS)
         self.assertAlmostEqual(float(highlight.attrib["x"]), expected_x, places=2)
 
-    def test_pages_clone_preserves_real_hover_interactions(self) -> None:
+    def test_pages_embeds_exact_native_panels_and_readable_contribution_table(self) -> None:
+        class Page(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.images, self.sections, self.rows = [], [], 0
+            def handle_starttag(self, tag, attrs):
+                a = dict(attrs)
+                if tag == 'img': self.images.append(a)
+                if tag == 'section': self.sections.append(a)
+                if tag == 'tr': self.rows += 1
         rendered = waveform.render_pages(self.activity, self.today)
-        self.assertIn(".streak:hover", rendered)
-        self.assertIn(".bay:hover", rendered)
-        self.assertIn(".day:hover:before", rendered)
-        self.assertIn(".day:hover span", rendered)
-        self.assertIn('id="waveform"', rendered)
-        self.assertIn("34 DAYS", rendered)
-        self.assertNotIn("SECRET-PROJECT", rendered)
+        page = Page()
+        page.feed(rendered)
+        data = waveform.profile_data(self.activity)
+        for image, expected in zip(page.images, (waveform.prism_orbit.streak_svg(data), waveform.prism_orbit.bay_svg(data))):
+            self.assertEqual(base64.b64decode(image['src'].split(',', 1)[1]).decode(), expected)
+        self.assertEqual([i['width'] for i in page.images[:2]], ['62%', '38%'])
+        self.assertEqual(page.rows, 15)
+        self.assertIn('waveform', [s.get('id') for s in page.sections])
+        self.assertNotIn('SECRET-PROJECT', rendered)
 
     def test_readme_links_images_to_interactive_pages_clone(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -222,8 +228,8 @@ class ProfileGeneratorTests(unittest.TestCase):
 
         self.assertEqual(first_reactor.attrib["data-generated-date"], "2026-08-21")
         self.assertEqual(second_reactor.attrib["data-generated-date"], "2026-08-22")
-        self.assertIn("current streak of 34 consecutive GitHub contribution days", first_streak)
-        self.assertIn("current streak of 35 consecutive GitHub contribution days", second_streak)
+        self.assertIn("34 consecutive GitHub contribution calendar days", first_streak)
+        self.assertIn("35 consecutive GitHub contribution calendar days", second_streak)
         self.assertIn("of 32 authored commits", first_commits)
         self.assertIn("of 33 authored commits", second_commits)
         self.assertNotEqual(first_streak, second_streak)

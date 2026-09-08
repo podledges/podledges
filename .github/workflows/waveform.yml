@@ -30,6 +30,24 @@ jobs:
             exit 1
           fi
 
+      # Calendar publication is independent of the waveform's REST cross-check.
+      # A later waveform failure remains visible but cannot freeze the new pair.
+      - name: Render current contribution panels
+        env:
+          GH_TOKEN: ${{ secrets.WAVEFORM_TOKEN }}
+          GH_USER: podledges
+        run: python3 scripts/waveform.py --contributions-only
+
+      - name: Commit refreshed contribution panels
+        run: |
+          git config user.name "profile-assets[bot]"
+          git config user.email "actions@github.com"
+          git add assets/podle-reactor.svg assets/prism-orbit-streak.svg assets/prism-orbit-bay.svg assets/profile-contributions.json docs/reactor.html
+          git diff --cached --quiet && exit 0
+          git commit -m "🎚 refresh contribution calendar [skip ci]"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"
+
       - name: Render current profile assets
         env:
           GH_TOKEN: ${{ secrets.WAVEFORM_TOKEN }}
@@ -40,7 +58,7 @@ jobs:
         run: |
           git config user.name "profile-assets[bot]"
           git config user.email "actions@github.com"
-          git add assets/podle-reactor.svg assets/waveform.svg docs/reactor.html
+          git add assets/podle-reactor.svg assets/prism-orbit-streak.svg assets/prism-orbit-bay.svg assets/profile-contributions.json assets/waveform.svg docs/reactor.html
           git diff --cached --quiet && exit 0
           git commit -m "🎚 refresh profile activity [skip ci]"
           git pull --rebase origin "$GITHUB_REF_NAME"
