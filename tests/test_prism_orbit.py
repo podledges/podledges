@@ -105,6 +105,46 @@ class PrismOrbitTests(unittest.TestCase):
         with patch.object(waveform.GitHubApi, 'graphql', return_value=response('github-actions[bot]')), self.assertRaisesRegex(RuntimeError, 'must belong'):
             waveform.fetch_contributions('not-a-real-token', now)
 
+    def test_full_capture_keeps_calendar_request_time_when_rest_crosses_utc_midnight(self):
+        before = datetime(2026, 9, 8, 23, 59, 59, tzinfo=timezone.utc)
+        after = datetime(2026, 9, 9, 0, 1, tzinfo=timezone.utc)
+        for future_zero in (False, True):
+            days = [
+                {'date': day['date'], 'contributionCount': day['count']}
+                for day in self.activity['contribution_days']
+            ]
+            if future_zero:
+                days.append({'date': '2026-09-09', 'contributionCount': 0})
+            response = {'viewer': {'login': 'podledges'}, 'user': {
+                'history': {'contributionCalendar': {'weeks': [{'contributionDays': days}]}},
+                'window': {'totalCommitContributions': 0}}}
+            with self.subTest(future_zero=future_zero), patch.object(waveform, 'datetime', wraps=datetime) as clock:
+                clock.now.return_value = before
+
+                def graphql(*args):
+                    self.assertEqual(clock.now.return_value, before)
+                    return response
+
+                def repositories(api):
+                    clock.now.return_value = after
+                    return []
+
+                with patch.object(waveform.GitHubApi, 'graphql', side_effect=graphql), patch.object(
+                    waveform.GitHubApi, 'owned_repositories', repositories
+                ):
+                    captured = waveform.fetch_activity('not-a-real-token', date(2026, 9, 9))
+                self.assertEqual(clock.now.return_value, after)
+            self.assertEqual(captured['today'], '2026-09-09')
+            self.assertEqual(captured['retrieved_at'], '2026-09-08T23:59:59Z')
+            data = waveform.profile_data(captured)
+            self.assertEqual(data['today'], '2026-09-08')
+            self.assertEqual(data['chart']['daily'][-1], {'date': '2026-09-08', 'count': 75})
+            self.assertEqual(data['chart']['total'], 350)
+            self.assertEqual(data['current_streak']['days'], 52)
+            for render in (prism_orbit.streak_svg, prism_orbit.bay_svg):
+                root = ET.fromstring(render(data))
+                self.assertEqual(root.attrib['data-retrieved-at'], '2026-09-08T23:59:59Z')
+
     def test_calendar_only_refresh_preserves_waveform_and_requires_no_commit_feed(self):
         activity = {k: v for k, v in self.activity.items() if k != 'repositories'}
         with tempfile.TemporaryDirectory() as directory:

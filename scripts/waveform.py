@@ -225,6 +225,7 @@ def fetch_activity(token: str, today: date) -> dict[str, Any]:
     history_start = today - timedelta(days=HISTORY_DAYS - 1)
     window_start = today - timedelta(days=WAVEFORM_DAYS - 1)
     to = datetime.combine(today + timedelta(days=1), time.min, PROFILE_TIMEZONE)
+    retrieved_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     data = api.graphql(
         CONTRIBUTIONS_QUERY,
         {
@@ -274,7 +275,7 @@ def fetch_activity(token: str, today: date) -> dict[str, Any]:
     return {
         "user": api.user,
         "today": today.isoformat(),
-        "retrieved_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "retrieved_at": retrieved_at,
         "streak_source": "GitHub GraphQL contribution calendar",
         "waveform_source": "complete GitHub REST default and gh-pages branch commits",
         "contribution_days": contribution_days,
