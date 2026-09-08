@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the profile's PodleStreak and commit waveform SVGs.
+"""Generate the profile's Prism Orbit panels, commit waveform and webpage.
 
 The streak follows GitHub's GraphQL contribution calendar. The waveform follows
 complete authored commits on each owned repository's default and gh-pages
@@ -24,6 +24,11 @@ import urllib.request
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Any
+
+if __package__:
+    from . import prism_orbit
+else:
+    import prism_orbit
 
 USER = os.environ.get("GH_USER", "podledges")
 PROFILE_UTC_OFFSET_HOURS = int(os.environ.get("PROFILE_UTC_OFFSET_HOURS", "8"))
@@ -90,7 +95,7 @@ class GitHubApi:
         headers.update(extra or {})
         return headers
 
-    def get(self, path: str, *, missing_ok: bool = False) -> Any:
+    def get(self, path: str, *, missing_ok: bool = False, empty_ok: bool = False) -> Any:
         request = urllib.request.Request(API + path, headers=self.headers())
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
@@ -99,14 +104,20 @@ class GitHubApi:
             if missing_ok and error.code in (404, 409):
                 return None
             detail = error.read().decode("utf-8", "replace")
+            if empty_ok and error.code == 409:
+                try:
+                    if json.loads(detail).get("message") == "Git Repository is empty.":
+                        return []
+                except (ValueError, AttributeError):
+                    pass
             raise RuntimeError(f"GitHub REST API {error.code}: {detail}") from error
 
-    def paginated(self, path: str) -> list[dict[str, Any]]:
+    def paginated(self, path: str, *, empty_ok: bool = False) -> list[dict[str, Any]]:
         records: list[dict[str, Any]] = []
         page = 1
         separator = "&" if "?" in path else "?"
         while True:
-            batch = self.get(f"{path}{separator}per_page=100&page={page}")
+            batch = self.get(f"{path}{separator}per_page=100&page={page}", empty_ok=empty_ok)
             if not isinstance(batch, list):
                 raise RuntimeError("GitHub REST pagination returned a non-list response")
             records.extend(batch)
@@ -136,7 +147,7 @@ class GitHubApi:
                 f"/repos/{repository}/commits?author={author}&sha={encoded_branch}"
                 f"&since={since_value}"
             )
-            for commit in self.paginated(path):
+            for commit in self.paginated(path, empty_ok=True):
                 authored_at = (commit.get("commit", {}).get("author") or {}).get("date")
                 if authored_at:
                     commits_by_sha[commit["sha"]] = {
@@ -193,11 +204,28 @@ def local_day_start_utc(day: date) -> datetime:
     return datetime.combine(day, time.min, PROFILE_TIMEZONE).astimezone(timezone.utc)
 
 
+def fetch_contributions(token: str, now: datetime | None = None) -> dict[str, Any]:
+    """Fetch the calendar independently of the unrelated REST commit waveform."""
+    now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    today = now.date()
+    api = GitHubApi(token)
+    data = api.graphql(CONTRIBUTIONS_QUERY, {
+        "login": api.user,
+        "historyFrom": datetime.combine(today - timedelta(days=HISTORY_DAYS - 1), time.min, timezone.utc).isoformat(),
+        "windowFrom": datetime.combine(today - timedelta(days=WAVEFORM_DAYS - 1), time.min, timezone.utc).isoformat(),
+        "to": now.isoformat(),
+    })
+    days, _ = contribution_source(data, api.user)
+    return {"user": api.user, "today": today.isoformat(),
+            "retrieved_at": now.isoformat().replace("+00:00", "Z"), "contribution_days": days}
+
+
 def fetch_activity(token: str, today: date) -> dict[str, Any]:
     api = GitHubApi(token)
     history_start = today - timedelta(days=HISTORY_DAYS - 1)
     window_start = today - timedelta(days=WAVEFORM_DAYS - 1)
     to = datetime.combine(today + timedelta(days=1), time.min, PROFILE_TIMEZONE)
+    retrieved_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     data = api.graphql(
         CONTRIBUTIONS_QUERY,
         {
@@ -247,6 +275,7 @@ def fetch_activity(token: str, today: date) -> dict[str, Any]:
     return {
         "user": api.user,
         "today": today.isoformat(),
+        "retrieved_at": retrieved_at,
         "streak_source": "GitHub GraphQL contribution calendar",
         "waveform_source": "complete GitHub REST default and gh-pages branch commits",
         "contribution_days": contribution_days,
@@ -446,132 +475,50 @@ def render_waveform(activity: dict[str, Any], today: date) -> str:
     return "\n".join(lines) + "\n"
 
 
+def profile_data(activity: dict[str, Any]) -> dict[str, Any]:
+    """Normalize an owner-authenticated calendar; never invent missing dates."""
+    retrieved_at = activity.get("retrieved_at", activity["today"] + "T00:00:00Z")
+    retrieved = datetime.fromisoformat(retrieved_at.replace("Z", "+00:00"))
+    if retrieved.tzinfo is None:
+        raise ValueError("retrieved_at must include its UTC offset")
+    # Contribution dates belong to GitHub's calendar, not the waveform's SG days.
+    today = min(date.fromisoformat(activity["today"]), retrieved.astimezone(timezone.utc).date())
+    counts = {}
+    for day in activity["contribution_days"]:
+        stamp = date.fromisoformat(day["date"])
+        count = day["count"]
+        if stamp in counts or type(count) is not int or count < 0:
+            raise ValueError("Calendar dates must be unique with nonnegative integer counts")
+        counts[stamp] = count
+    dates = [today - timedelta(days=13 - i) for i in range(14)]
+    if any(day not in counts for day in dates):
+        raise ValueError("A complete fourteen-date contribution calendar is required")
+    streak_days = contribution_streak(activity, today)
+    end = today if counts[today] else today - timedelta(days=1)
+    start = end - timedelta(days=streak_days - 1) if streak_days else None
+    if start and start - timedelta(days=1) not in counts:
+        raise ValueError("Current streak reaches the capture boundary; fetch more history before claiming an exact length")
+    daily = [{"date": day.isoformat(), "count": counts[day]} for day in dates]
+    return {
+        "today": today.isoformat(),
+        "retrieved_at": retrieved.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "source": "GitHub GraphQL contribution calendar; owner-authenticated, private-inclusive",
+        "current_streak": {"days": streak_days, "start": start.isoformat() if start else None,
+                           "end": end.isoformat() if streak_days else None},
+        "longest_ever": None,
+        "chart": {"daily": daily, "total": sum(day["count"] for day in daily)},
+    }
+
+
 def render_reactor(activity: dict[str, Any], today: date) -> str:
-    streak = contribution_streak(activity, today)
-    week_start = today - timedelta(days=6)
-    counts_by_repo = daily_counts(activity, week_start, 7)
-    week_counts = [sum(values[index] for values in counts_by_repo.values()) for index in range(7)]
-    max_count = max(week_counts, default=1) or 1
-    total_week = sum(week_counts)
-    desc = (
-        f"PodleStreak shows the current streak of {streak} consecutive GitHub contribution days, "
-        f"calculated on {today:%B %d, %Y}. PodleWeek bars show {total_week} authored commits over the "
-        "latest seven days. Private repository activity is included while names remain hidden."
-    )
-    lines = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="860" height="442" viewBox="0 0 860 442" role="img" aria-labelledby="reactor-title reactor-desc" data-generated-date="{today.isoformat()}">',
-        '  <title id="reactor-title">PodleHub PodleStreak and Podle Bay</title>',
-        f'  <desc id="reactor-desc">{svg_escape(desc)}</desc>',
-        '  <defs>',
-        '    <linearGradient id="reactor-bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#05070c"><animate attributeName="stop-color" values="#05070c;#071624;#05070c" dur="7s" repeatCount="indefinite"/></stop><stop offset=".55" stop-color="#0b121c"/><stop offset="1" stop-color="#16091b"><animate attributeName="stop-color" values="#16091b;#240b2d;#16091b" dur="7s" repeatCount="indefinite"/></stop></linearGradient>',
-        '    <linearGradient id="reactor-number" x1="0%" y1="0" x2="100%" y2="0"><stop stop-color="#fff"/><stop offset=".3" stop-color="#2ee9ff"/><stop offset=".58" stop-color="#ff2ec8"/><stop offset=".78" stop-color="#fff4d8"/><stop offset="1" stop-color="#ccff5e"/><animate attributeName="x1" values="-100%;100%;-100%" dur="3.6s" repeatCount="indefinite"/><animate attributeName="x2" values="0%;200%;0%" dur="3.6s" repeatCount="indefinite"/></linearGradient>',
-        '    <linearGradient id="reactor-rail" x1="0%" y1="0" x2="100%" y2="0"><stop stop-color="#2ee9ff"/><stop offset=".38" stop-color="#ff2ec8"/><stop offset=".7" stop-color="#fff4d8"/><stop offset="1" stop-color="#2ee9ff"/><animate attributeName="x1" values="-100%;100%;-100%" dur="4.8s" repeatCount="indefinite"/><animate attributeName="x2" values="0%;200%;0%" dur="4.8s" repeatCount="indefinite"/></linearGradient>',
-        '    <pattern id="reactor-hatch" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><rect width="16" height="16" fill="#171018"/><rect width="8" height="16" fill="#2c1d12" fill-opacity=".65"/></pattern>',
-        '    <filter id="reactor-cyan" filterUnits="userSpaceOnUse" x="14" y="60" width="522" height="366"><feGaussianBlur stdDeviation="4" result="blur"><animate attributeName="stdDeviation" values="3;7;3" dur="2.6s" repeatCount="indefinite"/></feGaussianBlur><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>',
-        '    <filter id="reactor-number-glow" filterUnits="userSpaceOnUse" x="25" y="105" width="500" height="112"><feGaussianBlur stdDeviation="5" result="blur"><animate attributeName="stdDeviation" values="4;10;4" dur="2.4s" repeatCount="indefinite"/></feGaussianBlur><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>',
-        '    <filter id="reactor-pink" filterUnits="userSpaceOnUse" x="10" y="10" width="34" height="34"><feGaussianBlur stdDeviation="6" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>',
-        '    <style>@keyframes panel-breathe{0%,100%{opacity:.76}50%{opacity:1}}.reactor-panel{animation:panel-breathe 3.2s ease-in-out infinite}.reactor-day title{pointer-events:none}</style>',
-        '  </defs>',
-        '  <rect data-role="outer-frame" x="1" y="1" width="858" height="440" rx="15" fill="url(#reactor-bg)" stroke="#263746"/>',
-        '  <rect x="2" y="2" width="856" height="438" rx="14" fill="none" stroke="#ff2ec8" stroke-opacity=".2"><animate attributeName="stroke-opacity" values=".14;.42;.14" dur="4.2s" repeatCount="indefinite"/></rect>',
-        f'  <g font-family="{MONO}">',
-        '    <circle cx="25" cy="27" r="5" fill="#ff2ec8" filter="url(#reactor-pink)"><animate attributeName="r" values="4;6;4" dur="2.4s" repeatCount="indefinite"/></circle>',
-        f'    <text x="41" y="31" fill="{BRIGHT}" font-size="12" font-weight="800" letter-spacing="3">PODLEHUB</text>',
-        f'    <text x="838" y="31" fill="{CYAN}" font-size="11" font-weight="700" text-anchor="end" letter-spacing="2">PODLE REACTOR · {today:%Y-%m-%d} · GITHUB CALENDAR</text>',
-        '    <line x1="22" y1="50" x2="838" y2="50" stroke="#88d6ff" stroke-opacity=".18"/>',
-        f'    <rect class="reactor-panel" data-role="streak-panel" x="22" y="68" width="500" height="350" rx="14" fill="{PANEL}" stroke="{CYAN}" stroke-opacity=".3"><title>PodleStreak panel - hover for a brighter neon edge</title><animate attributeName="stroke-opacity" values=".24;.52;.24" dur="3.4s" repeatCount="indefinite"/></rect>',
-        '    <rect class="reactor-panel reactor-bay" data-role="bay-panel" x="548" y="68" width="290" height="350" rx="14" fill="url(#reactor-hatch)" stroke="#ffb347" stroke-opacity=".72" stroke-dasharray="6 5"><title>Podle Bay reserved module panel</title><animate attributeName="stroke-dashoffset" values="0;-22" dur="3s" repeatCount="indefinite"/><animate attributeName="stroke-opacity" values=".52;.92;.52" dur="3.2s" repeatCount="indefinite"/></rect>',
-        f'    <text x="42" y="98" fill="{CYAN}" font-size="11" font-weight="800" letter-spacing="3">PODLESTREAK</text>',
-        '    <rect x="170" y="90" width="290" height="9" rx="4" fill="url(#reactor-rail)" filter="url(#reactor-cyan)"/>',
-        '    <rect x="170" y="90" width="42" height="9" rx="4" fill="#ffffff" fill-opacity=".62"><animate attributeName="x" values="170;418;170" dur="3.6s" repeatCount="indefinite"/><animate attributeName="fill-opacity" values=".38;.9;.38" dur="1.8s" repeatCount="indefinite"/></rect>',
-        f'    <text x="42" y="198" fill="url(#reactor-number)" filter="url(#reactor-number-glow)" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="94" font-weight="850" letter-spacing="-7">{streak} DAYS<animate attributeName="opacity" values=".84;1;.84" dur="2.4s" repeatCount="indefinite"/></text>',
-        '    <rect x="112" y="218" width="320" height="8" rx="4" fill="url(#reactor-rail)" filter="url(#reactor-cyan)"/>',
-        '    <rect x="112" y="218" width="46" height="8" rx="4" fill="#fff" fill-opacity=".5"><animate attributeName="x" values="112;386;112" dur="4.1s" repeatCount="indefinite"/></rect>',
-        f'    <text x="42" y="255" fill="{BRIGHT}" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="18" font-weight="800">consecutive daily contribution streak</text>',
-        f'    <text x="42" y="277" fill="#9bb0c6" font-size="11" letter-spacing="1">GitHub calendar · calculated {today:%Y-%m-%d} · private activity included</text>',
-        '    <line x1="42" y1="296" x2="502" y2="296" stroke="#88d6ff" stroke-opacity=".16"/>',
-        f'    <text x="42" y="320" fill="#9fb3ca" font-size="11" font-weight="800" letter-spacing="3">PODLEWEEK · {total_week} COMMITS</text>',
-    ]
-
-    for index, count in enumerate(week_counts):
-        x = 42 + index * 65
-        bar_height = 10 + (count / max_count) * 50 if count else 8
-        day = week_start + timedelta(days=index)
-        opacity = "1" if count else ".22"
-        popup_width = 84
-        lines.extend(
-            [
-                f'    <g class="reactor-day" data-role="week-day" data-index="{index}" transform="translate({x + 23} 382)"><title>{day:%A, %B %d}: {count} commits</title>',
-                f'      <rect data-role="day-bar" x="-23" y="-{fmt(bar_height)}" width="46" height="{fmt(bar_height)}" rx="3" fill="{CYAN}" fill-opacity="{opacity}"><animate attributeName="fill" values="{CYAN};{PINK};{PINK};{CYAN};{CYAN}" keyTimes="0;.02;.14;.16;1" dur="7s" begin="{index}s" repeatCount="indefinite"/><animate attributeName="fill-opacity" values="{opacity};1;1;{opacity};{opacity}" keyTimes="0;.02;.14;.16;1" dur="7s" begin="{index}s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="scale" values="1 1;1 1.14;1 1.14;1 1;1 1" keyTimes="0;.02;.14;.16;1" dur="7s" begin="{index}s" repeatCount="indefinite" additive="sum"/></rect>',
-                f'      <g data-role="week-popup" opacity="0"><animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;.02;.14;.16;1" dur="7s" begin="{index}s" repeatCount="indefinite"/><rect x="-{popup_width / 2:.0f}" y="-{fmt(bar_height + 27)}" width="{popup_width}" height="20" rx="10" fill="url(#reactor-rail)"/><text x="0" y="-{fmt(bar_height + 13)}" text-anchor="middle" fill="#fff" font-size="9" font-weight="800">{count} commits</text></g>',
-                '    </g>',
-                f'    <text x="{x + 23}" y="405" text-anchor="middle" fill="{BRIGHT}" font-size="10" font-weight="800">{day:%a}</text>',
-                f'    <text x="{x + 23}" y="336" text-anchor="middle" fill="#9fb3ca" font-size="8">{count}</text>',
-            ]
-        )
-
-    lines.extend(
-        [
-            '    <path d="M548 82h14M548 82v14M824 82h14M838 82v14M548 404h14M548 418v-14M824 418h14M838 418v-14" fill="none" stroke="#ffb347" stroke-width="2"/>',
-            '    <text x="570" y="102" fill="#ffd6a0" font-size="11" font-weight="800" letter-spacing="3">PODLE BAY</text>',
-            '    <text x="570" y="175" fill="#ffb347" font-size="25" font-weight="800" letter-spacing="3">HELD OPEN</text>',
-            '    <text x="570" y="213" fill="#ffd6a0" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="15">Separate panel.</text>',
-            '    <text x="570" y="238" fill="#ffd6a0" fill-opacity=".72" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="14">Future module docks here.</text>',
-            '    <text x="570" y="383" fill="#ffd6a0" fill-opacity=".58" font-size="10" letter-spacing="2">STATUS / RESERVED</text>',
-            '  </g>',
-            '</svg>',
-        ]
-    )
-    return "\n".join(lines) + "\n"
+    """Compatibility entry point now renders the accepted independent streak."""
+    return prism_orbit.streak_svg(profile_data({**activity, "today": today.isoformat()}))
 
 
 def render_pages(activity: dict[str, Any], today: date) -> str:
-    """Render the honest pointer-interactive counterpart to the README images."""
-    streak = contribution_streak(activity, today)
-    week_start = today - timedelta(days=6)
-    counts_by_repo = daily_counts(activity, week_start, 7)
-    week_counts = [sum(values[index] for values in counts_by_repo.values()) for index in range(7)]
-    max_count = max(week_counts, default=1) or 1
-    days = []
-    for index, count in enumerate(week_counts):
-        day = week_start + timedelta(days=index)
-        height = 12 + (count / max_count) * 58 if count else 8
-        days.append(
-            f'<div class="day" data-commits="{count}"><span style="height:{fmt(height)}px"></span><b>{day:%a}</b></div>'
-        )
-    waveform_svg = render_waveform(activity, today)
-    return f'''<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Interactive Podle Reactor</title>
-  <style>
-    :root{{--cyan:#2ee9ff;--pink:#ff2ec8;--lime:#ccff5e;--amber:#ffb347;--text:#e8f4ff;--muted:#9bb0c6}}
-    *{{box-sizing:border-box}} body{{margin:0;background:radial-gradient(circle at 18% 8%,#2ee9ff33,transparent 28rem),radial-gradient(circle at 82% 4%,#ff2ec833,transparent 25rem),linear-gradient(135deg,#04050a,#07111b 48%,#17091e);color:var(--text);font-family:Inter,system-ui,sans-serif}}
-    main{{width:min(920px,calc(100vw - 24px));margin:auto;padding:24px 0 48px}} .kicker{{color:var(--cyan);font:800 11px ui-monospace,monospace;letter-spacing:2.8px}} h1{{margin:8px 0 20px;font-size:clamp(28px,5vw,50px)}}
-    .reactor,.wave-card{{border-radius:16px;background:linear-gradient(135deg,#07080d,#0a111a 54%,#14091a);border:1px solid #2ee9ff2e;box-shadow:0 18px 40px #0008;padding:18px;transition:transform .18s,box-shadow .18s}} .wave-card{{margin-top:16px;border-color:#ccff5e38;padding:0;overflow:hidden}} .wave-card:hover{{transform:translateY(-2px);box-shadow:0 0 42px #ccff5e2e,0 18px 40px #0008}}
-    .top{{height:34px;border-bottom:1px solid #88d6ff29;font:800 11px ui-monospace,monospace;letter-spacing:2.8px;display:flex;align-items:center;gap:14px}} .dot{{width:10px;height:10px;border-radius:50%;background:var(--pink);box-shadow:0 0 18px var(--pink)}}
-    .grid{{display:grid;grid-template-columns:minmax(0,1fr) 232px;gap:24px;padding-top:20px}} .panel{{min-height:360px;border-radius:14px;transition:transform .18s,box-shadow .18s}} .streak{{padding:18px 20px;background:#080c13;border:1px solid #2ee9ff3d}} .streak:hover{{transform:translateY(-2px);box-shadow:0 0 36px #2ee9ff38}} .bay{{padding:18px;background:repeating-linear-gradient(135deg,#171018 0 11px,#2c1d12 11px 22px);border:1px dashed #ffb347a6;color:#ffd6a0}} .bay:hover{{transform:translateY(-2px);box-shadow:0 0 36px #ff2ec838}}
-    .rail{{display:inline-block;width:min(300px,58%);height:9px;margin-left:20px;border-radius:99px;background:linear-gradient(90deg,var(--cyan),var(--pink),#fff4d8,var(--cyan));background-size:260% 100%;box-shadow:0 0 18px var(--cyan);animation:rail 4.8s ease-in-out infinite alternate}} @keyframes rail{{to{{background-position:100%}}}} .num{{margin:38px 0 0;font-size:88px;font-weight:850;letter-spacing:-8px;background:linear-gradient(90deg,#fff,var(--cyan),var(--pink),#fff,var(--lime));background-size:220%;-webkit-background-clip:text;color:transparent;animation:num 2.4s ease-in-out infinite}} @keyframes num{{50%{{background-position:100%;filter:drop-shadow(0 0 24px #ff2ec8)}}}}
-    .week{{margin-top:28px;padding-top:12px;border-top:1px solid #88d6ff24}} .bars{{height:88px;display:grid;grid-template-columns:repeat(7,1fr);gap:14px;align-items:end}} .day{{position:relative;display:flex;flex-direction:column;align-items:center;gap:7px;font:800 11px ui-monospace,monospace}} .day span{{width:100%;max-width:48px;border-radius:4px;background:var(--cyan);box-shadow:0 0 18px #2ee9ffcc;transform-origin:bottom;transition:.16s}} .day:before{{content:attr(data-commits) ' commits';position:absolute;bottom:100%;opacity:0;transform:translateY(6px);padding:5px 8px;border-radius:999px;background:linear-gradient(90deg,var(--cyan),var(--pink));white-space:nowrap;transition:.16s;z-index:2}} .day:hover:before{{opacity:1;transform:none}} .day:hover span{{transform:scaleY(1.14);background:var(--pink);box-shadow:0 0 24px #ff2ec8e6}}
-    .bay h2{{margin:42px 0 20px;font:800 24px ui-monospace,monospace;letter-spacing:3px;color:var(--amber)}} .source{{color:var(--muted);font:12px ui-monospace,monospace;margin:14px 2px}} .wave-card svg{{display:block;width:100%;height:auto}}
-    @media(max-width:700px){{.grid{{grid-template-columns:1fr}}.rail{{display:block;margin:14px 0;width:80%}}.num{{font-size:68px}}}}
-  </style>
-</head>
-<body><main data-generated-date="{today.isoformat()}">
-  <div class="kicker">INTERACTIVE PROFILE LAB</div><h1>Podle Reactor</h1>
-  <section class="reactor" aria-label="Interactive PodleStreak and Podle Bay">
-    <div class="top"><span class="dot"></span>PODLEHUB</div>
-    <div class="grid">
-      <section class="panel streak"><div class="kicker">PODLESTREAK <span class="rail"></span></div><div class="num">{streak} DAYS</div><h2>consecutive daily contribution streak</h2><div class="source">GitHub contribution calendar</div><div class="week"><div class="kicker">PODLEWEEK · {sum(week_counts)} COMMITS</div><div class="bars">{''.join(days)}</div></div></section>
-      <aside class="panel bay"><div class="kicker">PODLE BAY</div><h2>HELD OPEN</h2><div>Separate selectable panel.</div><div class="source">Future module docks here.</div></aside>
-    </div>
-  </section>
-  <section id="waveform" class="wave-card" aria-label="Interactive commit waveform">{waveform_svg}</section>
-  <p class="source">Generated {today.isoformat()} from GitHub contribution-calendar streak data and complete private-inclusive default/gh-pages branch commit data.</p>
-</main></body></html>
-'''
+    data = profile_data({**activity, "today": today.isoformat()})
+    hub = (Path(__file__).resolve().parent.parent / "assets" / "codex-hardline-podlehub.svg").read_text()
+    return prism_orbit.render_pages(data, render_waveform(activity, today), hub)
 
 
 def load_activity(path: Path) -> dict[str, Any]:
@@ -580,24 +527,38 @@ def load_activity(path: Path) -> dict[str, Any]:
 
 
 def write_assets(
-    activity: dict[str, Any], output_dir: Path, pages_output: Path | None = None
+    activity: dict[str, Any], output_dir: Path, pages_output: Path | None = None,
+    *, contributions_only: bool = False,
 ) -> None:
     today = date.fromisoformat(activity["today"])
-    output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "podle-reactor.svg").write_text(render_reactor(activity, today), encoding="utf-8")
-    (output_dir / "waveform.svg").write_text(render_waveform(activity, today), encoding="utf-8")
+    data = profile_data(activity)
+    # Render everything before touching outputs: invalid input must leave the
+    # previous complete capture intact. The old reactor path is a compatibility alias.
+    streak = prism_orbit.streak_svg(data)
+    waveform_svg = ((output_dir / "waveform.svg").read_text() if contributions_only
+                    else render_waveform(activity, today))
+    outputs = {
+        output_dir / "prism-orbit-streak.svg": streak,
+        output_dir / "podle-reactor.svg": streak,
+        output_dir / "prism-orbit-bay.svg": prism_orbit.bay_svg(data),
+        output_dir / "profile-contributions.json": json.dumps(data, indent=2) + "\n",
+    }
+    if not contributions_only:
+        outputs[output_dir / "waveform.svg"] = waveform_svg
     if pages_output is not None:
-        pages_output.parent.mkdir(parents=True, exist_ok=True)
-        pages_output.write_text(render_pages(activity, today), encoding="utf-8")
-    print(f"wrote {output_dir / 'podle-reactor.svg'}", file=os.sys.stderr)
-    print(f"wrote {output_dir / 'waveform.svg'}", file=os.sys.stderr)
-    if pages_output is not None:
-        print(f"wrote {pages_output}", file=os.sys.stderr)
+        hub = (Path(__file__).resolve().parent.parent / "assets" / "codex-hardline-podlehub.svg").read_text()
+        outputs[pages_output] = prism_orbit.render_pages(data, waveform_svg, hub)
+    for path, content in outputs.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+        print(f"wrote {path}", file=os.sys.stderr)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fixture", type=Path, help="render from captured activity JSON")
+    parser.add_argument("--contributions-only", action="store_true",
+                        help="refresh the calendar pair and page; preserve the existing waveform capture")
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -613,10 +574,14 @@ def main() -> None:
 
     if args.fixture:
         activity = load_activity(args.fixture)
+    elif args.contributions_only:
+        if args.today:
+            parser.error("--today is only supported for full REST captures; calendar-only uses the actual UTC retrieval date")
+        activity = fetch_contributions(os.environ.get("GH_TOKEN", ""))
     else:
         today = args.today or datetime.now(PROFILE_TIMEZONE).date()
         activity = fetch_activity(os.environ.get("GH_TOKEN", ""), today)
-    write_assets(activity, args.output_dir, args.pages_output)
+    write_assets(activity, args.output_dir, args.pages_output, contributions_only=args.contributions_only)
 
 
 if __name__ == "__main__":

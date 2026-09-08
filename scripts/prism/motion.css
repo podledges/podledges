@@ -1,0 +1,44 @@
+/* Native SVG animation only. Included verbatim by scripts/prism_orbit.py. */
+.drift-a{animation:drift-a 31s ease-in-out infinite}
+.drift-b{animation:drift-b 43s ease-in-out infinite}
+@keyframes drift-a{0%,100%{transform:translate(0,0)}13%{transform:translate(17px,-11px)}29%{transform:translate(-8px,-19px)}44%{transform:translate(21px,6px)}61%{transform:translate(5px,16px)}78%{transform:translate(-19px,3px)}91%{transform:translate(-9px,-8px)}}
+@keyframes drift-b{0%,100%{transform:translate(0,0)}17%{transform:translate(-14px,14px)}37%{transform:translate(18px,9px)}56%{transform:translate(6px,-15px)}72%{transform:translate(-16px,-5px)}89%{transform:translate(9px,12px)}}
+.digit-float{animation:float 7.8s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-2.4px)}}
+.tint-a{animation:tint-a 19s ease-in-out infinite}
+.tint-b{animation:tint-b 23s ease-in-out infinite}
+@keyframes tint-a{0%,100%{stop-color:#7ee8ff}50%{stop-color:#c084ff}}
+@keyframes tint-b{0%,100%{stop-color:#c084ff}50%{stop-color:#ff7ad9}}
+.digit-tint-a{animation:digit-a 19s ease-in-out infinite}
+.digit-tint-b{animation:digit-b 23s ease-in-out infinite}
+@keyframes digit-a{0%,100%{stop-color:#e6fbff}50%{stop-color:#e4d8ff}}
+@keyframes digit-b{0%,100%{stop-color:#c7b9ff}50%{stop-color:#aeefff}}
+.digit-glow{animation:glow-color 19s ease-in-out infinite;fill:#7ee8ff}
+@keyframes glow-color{0%,100%{fill:#7ee8ff}50%{fill:#c084ff}}
+.bar-enter{animation:arrive .85s ease-out both}
+@keyframes arrive{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+.bar-ink{animation:bar-color 17s ease-in-out infinite;fill:var(--a)}
+@keyframes bar-color{0%,100%{fill:var(--a)}50%{fill:var(--b)}}
+.hot-sheen{animation:hot-rise 4.8s linear infinite}
+@keyframes hot-rise{from{transform:translateY(150px)}to{transform:translateY(-120px)}}
+.rail-scan{animation:scan 9s linear infinite}
+@keyframes scan{from{transform:translateY(0)}to{transform:translateY(130px)}}
+/* Bay uses warm orbital colour and horizontal motion, not a second streak hero. */
+.portrait-satellite{animation:portrait-orbit 26s linear infinite;transform:rotate(-38deg)}
+@keyframes portrait-orbit{from{transform:rotate(-38deg)}to{transform:rotate(322deg)}}
+.bay-tint{animation:bay-tint 21s ease-in-out infinite}
+@keyframes bay-tint{0%,100%{stop-color:#ccff5e}50%{stop-color:#ffbc73}}
+.bay-aura{animation:bay-drift 29s ease-in-out infinite}
+@keyframes bay-drift{0%,100%{transform:translate(-8px,0)}40%{transform:translate(12px,-8px)}72%{transform:translate(3px,9px)}}
+.ribbon-shuttle{animation:shuttle 16s ease-in-out infinite}
+@keyframes shuttle{0%,100%{transform:translateX(-55px)}50%{transform:translateX(55px)}}
+.orbit-rest{display:none}
+/* Opaque light-host backing is native; the preview cannot fix SVG label contrast. */
+@media(prefers-color-scheme:light){.surface-paint{fill:#10141c}}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  .hot-sheen,[data-role="orbit-object"]{display:none!important}
+  .orbit-rest{display:inline}
+  .rail-scan{transform:translateY(70px);opacity:.55}
+  .ribbon-shuttle{transform:translateX(32px)}
+}
