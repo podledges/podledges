@@ -1,19 +1,15 @@
 {
-  "today": "2026-11-22",
-  "retrieved_at": "2026-11-22T16:21:19.328435Z",
+  "today": "2026-11-23",
+  "retrieved_at": "2026-11-23T07:49:59.391717Z",
   "source": "GitHub GraphQL contribution calendar; owner-authenticated, private-inclusive",
   "current_streak": {
-    "days": 5,
-    "start": "2026-11-17",
-    "end": "2026-11-21"
+    "days": 0,
+    "start": null,
+    "end": null
   },
   "longest_ever": null,
   "chart": {
     "daily": [
-      {
-        "date": "2026-11-09",
-        "count": 6
-      },
       {
         "date": "2026-11-10",
         "count": 4
@@ -65,8 +61,12 @@
       {
         "date": "2026-11-22",
         "count": 0
+      },
+      {
+        "date": "2026-11-23",
+        "count": 0
       }
     ],
-    "total": 138
+    "total": 132
   }
 }
